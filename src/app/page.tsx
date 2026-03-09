@@ -45,10 +45,16 @@ export default function Home() {
                 Precios
               </a>
               <Link
-                href="/dashboard"
+                href="/login"
+                className="text-sm text-gray-600 hover:text-emerald-600 transition-colors"
+              >
+                Iniciar Sesión
+              </Link>
+              <Link
+                href="/register"
                 className="inline-flex items-center px-4 py-2 rounded-lg bg-emerald-500 text-white text-sm font-medium hover:bg-emerald-600 transition-colors"
               >
-                Ir al Dashboard
+                Registrarse
               </Link>
             </div>
           </div>

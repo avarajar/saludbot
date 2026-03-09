@@ -11,6 +11,21 @@ export type ClinicSpecialty =
 
 export type PackageType = 'basico' | 'autopilot' | 'marketing';
 
+export interface DayHours {
+  open: string; // HH:MM
+  close: string; // HH:MM
+}
+
+export interface BusinessHours {
+  monday: DayHours | null;
+  tuesday: DayHours | null;
+  wednesday: DayHours | null;
+  thursday: DayHours | null;
+  friday: DayHours | null;
+  saturday: DayHours | null;
+  sunday: DayHours | null;
+}
+
 export interface Clinic {
   id: string;
   name: string;
@@ -18,6 +33,9 @@ export interface Clinic {
   phone: string;
   address: string;
   city: string;
+  country: string; // ISO country code, default 'CO'
+  currency: string; // ISO currency code, default 'COP'
+  locale: string; // BCP 47 locale, default 'es-CO'
   specialty: ClinicSpecialty;
   google_calendar_id: string;
   timezone: string; // default 'America/Bogota'
@@ -25,6 +43,7 @@ export interface Clinic {
   owner_name: string;
   owner_email: string;
   package_type: PackageType;
+  business_hours: BusinessHours;
   active: boolean;
   created_at: string;
   updated_at: string;

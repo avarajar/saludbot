@@ -219,3 +219,48 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ appointment }, { status: 201 });
 }
+
+// ── PATCH /api/appointments ──────────────────────────────────────────────────
+
+const updateAppointmentSchema = z.object({
+  id: z.string().uuid(),
+  status: z
+    .enum(['scheduled', 'confirmed', 'completed', 'cancelled', 'no_show', 'rescheduled'])
+    .optional(),
+  notes: z.string().optional().nullable(),
+});
+
+/**
+ * Updates an existing appointment (e.g., cancel, confirm, add notes).
+ */
+export async function PATCH(request: NextRequest) {
+  const body = await request.json();
+
+  const parsed = updateAppointmentSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: 'Validation failed', details: parsed.error.flatten() },
+      { status: 400 },
+    );
+  }
+
+  const { id, ...updates } = parsed.data;
+
+  const supabase = getSupabase();
+
+  const { data: appointment, error } = await supabase
+    .from('appointments')
+    .update(updates)
+    .eq('id', id)
+    .select('*, patients(name, phone)')
+    .single();
+
+  if (error) {
+    return NextResponse.json(
+      { error: `Failed to update appointment: ${error.message}` },
+      { status: 500 },
+    );
+  }
+
+  return NextResponse.json({ appointment });
+}

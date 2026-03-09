@@ -133,3 +133,52 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ clinic }, { status: 201 });
 }
+
+// ── PATCH /api/clinics ─────────────────────────────────────────────────────
+
+const updateClinicSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1).optional(),
+  phone: z.string().min(7).optional(),
+  address: z.string().min(1).optional(),
+  city: z.string().min(1).optional(),
+  whatsapp_number: z.string().min(7).optional(),
+  timezone: z.string().optional(),
+  owner_name: z.string().min(1).optional(),
+  owner_email: z.string().email().optional(),
+});
+
+/**
+ * Updates an existing clinic's information.
+ */
+export async function PATCH(request: NextRequest) {
+  const body = await request.json();
+
+  const parsed = updateClinicSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: 'Validation failed', details: parsed.error.flatten() },
+      { status: 400 },
+    );
+  }
+
+  const { id, ...updates } = parsed.data;
+
+  const supabase = getSupabase();
+
+  const { data: clinic, error } = await supabase
+    .from('clinics')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    return NextResponse.json(
+      { error: `Failed to update clinic: ${error.message}` },
+      { status: 500 },
+    );
+  }
+
+  return NextResponse.json({ clinic });
+}

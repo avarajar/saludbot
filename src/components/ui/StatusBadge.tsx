@@ -1,9 +1,4 @@
-type AppointmentStatus =
-  | "scheduled"
-  | "confirmed"
-  | "completed"
-  | "cancelled"
-  | "no_show";
+import type { AppointmentStatus } from "@/types";
 
 interface StatusBadgeProps {
   status: AppointmentStatus;
@@ -32,6 +27,10 @@ const statusConfig: Record<
   no_show: {
     label: "No asistió",
     classes: "bg-orange-50 text-orange-700 ring-orange-600/20",
+  },
+  rescheduled: {
+    label: "Reagendada",
+    classes: "bg-purple-50 text-purple-700 ring-purple-600/20",
   },
 };
 

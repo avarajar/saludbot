@@ -1,4 +1,4 @@
-import type { Clinic, Patient, ClinicService, Appointment } from '@/types';
+import type { Clinic, Patient, ClinicService, Appointment, BusinessHours } from '@/types';
 import {
   getClinicServices,
   getAvailableSlots,
@@ -190,12 +190,50 @@ export async function handleInfoServices(clinic: Clinic): Promise<string> {
 
 // ── Info: Hours ─────────────────────────────────────────────────────────────
 
+const DAY_NAMES: Record<keyof BusinessHours, string> = {
+  monday: 'Lunes',
+  tuesday: 'Martes',
+  wednesday: 'Miercoles',
+  thursday: 'Jueves',
+  friday: 'Viernes',
+  saturday: 'Sabado',
+  sunday: 'Domingo',
+};
+
+function formatTime(time: string): string {
+  const [hourStr, minuteStr] = time.split(':');
+  const hour = parseInt(hourStr, 10);
+  const minute = minuteStr || '00';
+  const suffix = hour >= 12 ? 'PM' : 'AM';
+  const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+  return `${displayHour}:${minute} ${suffix}`;
+}
+
+function formatBusinessHours(hours: BusinessHours): string {
+  const days = Object.keys(DAY_NAMES) as (keyof BusinessHours)[];
+  const lines: string[] = [];
+
+  for (const day of days) {
+    const dayHours = hours[day];
+    const label = DAY_NAMES[day];
+    if (dayHours) {
+      lines.push(`${label}: ${formatTime(dayHours.open)} - ${formatTime(dayHours.close)}`);
+    } else {
+      lines.push(`${label}: Cerrado`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
 export async function handleInfoHours(clinic: Clinic): Promise<string> {
   try {
+    const hoursText = formatBusinessHours(clinic.business_hours);
+
     return await generateResponse('info_hours', {
       clinicName: clinic.name,
       clinicAddress: clinic.address,
-      clinicHours: 'Lunes a Viernes 8:00 AM - 6:00 PM, Sabados 8:00 AM - 1:00 PM',
+      clinicHours: hoursText,
     });
   } catch (error) {
     console.error('Error handling info_hours:', error);
