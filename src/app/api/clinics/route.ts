@@ -77,11 +77,14 @@ const createClinicSchema = z.object({
   address: z.string().min(1),
   city: z.string().min(1),
   specialty: z.enum(CLINIC_SPECIALTIES),
-  google_calendar_id: z.string().email('google_calendar_id must be a valid calendar ID'),
+  google_calendar_id: z.string().email('google_calendar_id must be a valid calendar ID').optional(),
   whatsapp_number: z.string().min(7),
   owner_name: z.string().min(1),
   owner_email: z.string().email(),
   package_type: z.enum(PACKAGE_TYPES),
+  country: z.string().length(2).optional(),
+  currency: z.string().min(3).max(3).optional(),
+  locale: z.string().min(2).optional(),
 });
 
 /**

@@ -3,7 +3,7 @@
 import Button from "@/components/ui/Button";
 import StatusBadge from "@/components/ui/StatusBadge";
 import { useCallback, useEffect, useState } from "react";
-import type { Appointment, AppointmentStatus } from "@/types";
+import type { Appointment, AppointmentStatus, Patient } from "@/types";
 import { useClinic } from "@/lib/auth/clinic-context";
 
 interface AppointmentWithPatient extends Appointment {
@@ -29,6 +29,18 @@ export default function AppointmentsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+
+  // Nueva Cita modal state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [loadingPatients, setLoadingPatients] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [formData, setFormData] = useState({
+    patient_id: "",
+    service: "",
+    date: "",
+    start_time: "",
+  });
 
   const fetchAppointments = useCallback(async () => {
     if (!clinic?.id) return;
@@ -130,8 +142,182 @@ export default function AppointmentsPage() {
     }
   };
 
+  const openModal = async () => {
+    setModalOpen(true);
+    setFormData({ patient_id: "", service: "", date: "", start_time: "" });
+    if (!clinic?.id) return;
+
+    setLoadingPatients(true);
+    try {
+      const res = await fetch(`/api/patients?clinic_id=${clinic.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setPatients(data.patients ?? []);
+      }
+    } catch {
+      // silently fail; user sees empty dropdown
+    } finally {
+      setLoadingPatients(false);
+    }
+  };
+
+  const handleCreateAppointment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!clinic?.id) return;
+
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/appointments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clinic_id: clinic.id,
+          patient_id: formData.patient_id,
+          service: formData.service,
+          date: formData.date,
+          start_time: formData.start_time,
+          status: "scheduled",
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Error al crear la cita");
+      }
+
+      setModalOpen(false);
+      await fetchAppointments();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error al crear la cita");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* Nueva Cita Modal */}
+      {modalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => setModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Nueva Cita
+              </h3>
+              <button
+                onClick={() => setModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateAppointment} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Paciente
+                </label>
+                <select
+                  required
+                  value={formData.patient_id}
+                  onChange={(e) =>
+                    setFormData({ ...formData, patient_id: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                >
+                  <option value="">
+                    {loadingPatients
+                      ? "Cargando pacientes..."
+                      : "Seleccionar paciente"}
+                  </option>
+                  {patients.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} — {p.phone}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Servicio
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.service}
+                  onChange={(e) =>
+                    setFormData({ ...formData, service: e.target.value })
+                  }
+                  placeholder="Ej: Limpieza dental"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Fecha
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={formData.date}
+                  onChange={(e) =>
+                    setFormData({ ...formData, date: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Hora de inicio
+                </label>
+                <input
+                  type="time"
+                  required
+                  value={formData.start_time}
+                  onChange={(e) =>
+                    setFormData({ ...formData, start_time: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setModalOpen(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit" loading={submitting}>
+                  Crear Cita
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -140,7 +326,7 @@ export default function AppointmentsPage() {
             Gestiona todas las citas de tu clínica
           </p>
         </div>
-        <Button>
+        <Button onClick={openModal}>
           <svg
             className="w-4 h-4"
             fill="none"

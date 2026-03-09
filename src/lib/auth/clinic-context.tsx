@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useState,
@@ -14,12 +15,16 @@ interface ClinicContextValue {
   clinic: Clinic | null;
   loading: boolean;
   error: string | null;
+  userEmail: string;
+  refetch: () => Promise<void>;
 }
 
 const ClinicContext = createContext<ClinicContextValue>({
   clinic: null,
   loading: true,
   error: null,
+  userEmail: "",
+  refetch: async () => {},
 });
 
 interface ClinicProviderProps {
@@ -32,38 +37,41 @@ export function ClinicProvider({ userEmail, children }: ClinicProviderProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function fetchClinic() {
-      try {
-        const supabase = createSupabaseBrowserClient();
-        const { data, error: queryError } = await supabase
-          .from("clinics")
-          .select("*")
-          .eq("owner_email", userEmail)
-          .maybeSingle();
-
-        if (queryError) {
-          setError("No se pudo cargar la informacion de la clinica.");
-          return;
-        }
-
-        setClinic(data);
-      } catch {
-        setError("Error de conexion. Intente nuevamente.");
-      } finally {
-        setLoading(false);
-      }
+  const fetchClinic = useCallback(async () => {
+    if (!userEmail) {
+      setLoading(false);
+      return;
     }
+    try {
+      setLoading(true);
+      setError(null);
+      const supabase = createSupabaseBrowserClient();
+      const { data, error: queryError } = await supabase
+        .from("clinics")
+        .select("*")
+        .eq("owner_email", userEmail)
+        .limit(1)
+        .maybeSingle();
 
-    if (userEmail) {
-      fetchClinic();
-    } else {
+      if (queryError) {
+        setError("No se pudo cargar la informacion de la clinica.");
+        return;
+      }
+
+      setClinic(data);
+    } catch {
+      setError("Error de conexion. Intente nuevamente.");
+    } finally {
       setLoading(false);
     }
   }, [userEmail]);
 
+  useEffect(() => {
+    fetchClinic();
+  }, [fetchClinic]);
+
   return (
-    <ClinicContext.Provider value={{ clinic, loading, error }}>
+    <ClinicContext.Provider value={{ clinic, loading, error, userEmail, refetch: fetchClinic }}>
       {children}
     </ClinicContext.Provider>
   );
