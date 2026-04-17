@@ -37,17 +37,8 @@ env:
   clear:
     NODE_ENV: production
     PORT: 3000
-  secret:
-    # Descomenta las que tu app necesite y añádelas como secrets en GitHub
-    # y en .github/workflows/deploy.yml:
-    # - NEXT_PUBLIC_SUPABASE_URL
-    # - NEXT_PUBLIC_SUPABASE_ANON_KEY
-    # - SUPABASE_SERVICE_ROLE_KEY
-    # - ANTHROPIC_API_KEY
-    # - TWILIO_ACCOUNT_SID
-    # - TWILIO_AUTH_TOKEN
-    # - TWILIO_WHATSAPP_NUMBER
-    # - GOOGLE_SERVICE_ACCOUNT_EMAIL
-    # - GOOGLE_PRIVATE_KEY
-    # - GOOGLE_CALENDAR_ID
-    # - CRON_SECRET
+  # Cuando necesites secrets, añade aquí:
+  # secret:
+  #   - ANTHROPIC_API_KEY
+  #   - NEXT_PUBLIC_SUPABASE_URL
+  #   (etc. — también destapar en .github/workflows/deploy.yml)
