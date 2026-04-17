@@ -1,0 +1,53 @@
+# Config de Kamal — generada por deploy-starter
+# Docs: https://kamal-deploy.org
+#
+# Este archivo SÍ se commitea. Los valores variables (IP, password)
+# los inyecta GitHub Actions vía ENV.
+
+service: saludbot
+
+image: avarajar/saludbot
+
+servers:
+  web:
+    - <%= ENV["SERVER_IP"] %>
+
+proxy:
+  ssl: false
+  host: <%= ENV["DOMAIN"] %>
+  app_port: 3000
+  healthcheck:
+    path: /api/health
+    interval: 3
+    timeout: 30
+
+registry:
+  server: ghcr.io
+  username: avarajar
+  password:
+    - KAMAL_REGISTRY_PASSWORD
+
+ssh:
+  user: root
+
+builder:
+  arch: amd64
+
+env:
+  clear:
+    NODE_ENV: production
+    PORT: 3000
+  secret:
+    # Descomenta las que tu app necesite y añádelas como secrets en GitHub
+    # y en .github/workflows/deploy.yml:
+    # - NEXT_PUBLIC_SUPABASE_URL
+    # - NEXT_PUBLIC_SUPABASE_ANON_KEY
+    # - SUPABASE_SERVICE_ROLE_KEY
+    # - ANTHROPIC_API_KEY
+    # - TWILIO_ACCOUNT_SID
+    # - TWILIO_AUTH_TOKEN
+    # - TWILIO_WHATSAPP_NUMBER
+    # - GOOGLE_SERVICE_ACCOUNT_EMAIL
+    # - GOOGLE_PRIVATE_KEY
+    # - GOOGLE_CALENDAR_ID
+    # - CRON_SECRET

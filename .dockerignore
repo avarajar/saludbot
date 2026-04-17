@@ -1,0 +1,46 @@
+# Git
+.git
+.gitignore
+.github
+.gitlab-ci.yml
+.circleci
+
+# Docker
+.dockerignore
+Dockerfile
+docker-compose*.yml
+
+# Editor / OS
+.vscode
+.idea
+.DS_Store
+*.swp
+Thumbs.db
+
+# Node
+node_modules
+npm-debug.log
+yarn-error.log
+.pnpm-debug.log
+.next
+.nuxt
+dist
+build
+coverage
+
+# Env files — NUNCA bakear esto en la imagen
+.env
+.env.*
+!.env.example
+
+# Terraform / Kamal / deploys
+infra/.terraform
+infra/*.tfstate*
+infra/terraform.tfvars
+.kamal/secrets
+config/deploy*.yml.local
+
+# Tests / docs
+*.log
+README.md
+docs

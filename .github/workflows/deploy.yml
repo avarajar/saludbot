@@ -1,0 +1,91 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    env:
+      SERVER_IP: ${{ secrets.SERVER_IP }}
+      DOMAIN: ${{ secrets.DOMAIN }}
+      KAMAL_REGISTRY_PASSWORD: ${{ secrets.KAMAL_REGISTRY_PASSWORD }}
+
+      # Descomenta los secrets que tu app necesite (también en config/deploy.yml):
+      # NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      # NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      # SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      # ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+      # TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+      # TWILIO_WHATSAPP_NUMBER: ${{ secrets.TWILIO_WHATSAPP_NUMBER }}
+      # GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+      # GOOGLE_PRIVATE_KEY: ${{ secrets.GOOGLE_PRIVATE_KEY }}
+      # GOOGLE_CALENDAR_ID: ${{ secrets.GOOGLE_CALENDAR_ID }}
+      # CRON_SECRET: ${{ secrets.CRON_SECRET }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: false
+
+      - name: Install Kamal
+        run: gem install kamal --no-document
+
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Trust server host key
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$SERVER_IP" >> ~/.ssh/known_hosts 2>/dev/null || true
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Detect first deploy
+        id: first
+        run: |
+          if ssh -o BatchMode=yes -o StrictHostKeyChecking=no \
+                root@"$SERVER_IP" \
+                "docker ps -a --format '{{.Names}}' 2>/dev/null | grep -q '^kamal-proxy$'"; then
+            echo "first_deploy=false" >> "$GITHUB_OUTPUT"
+            echo "→ VM ya configurada, deploy normal."
+          else
+            echo "first_deploy=true" >> "$GITHUB_OUTPUT"
+            echo "→ Primera vez: se correrá kamal setup."
+          fi
+
+      - name: First deploy — kamal setup
+        if: steps.first.outputs.first_deploy == 'true'
+        run: kamal setup --verbose
+
+      - name: Subsequent deploy — kamal deploy
+        if: steps.first.outputs.first_deploy == 'false'
+        run: kamal deploy --verbose
+
+      - name: Show deploy URL
+        if: success()
+        run: |
+          echo "═══════════════════════════════════════════════"
+          echo "  ✅ Deploy completo"
+          echo "  → http://${DOMAIN}:3000"
+          echo "═══════════════════════════════════════════════"
