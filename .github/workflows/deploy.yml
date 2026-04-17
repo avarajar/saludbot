@@ -55,6 +55,13 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
+      - name: Write Kamal secrets file
+        run: |
+          mkdir -p .kamal
+          cat > .kamal/secrets <<'EOF'
+          KAMAL_REGISTRY_PASSWORD=$KAMAL_REGISTRY_PASSWORD
+          EOF
+
       - name: Configure SSH (skip host key check)
         run: |
           mkdir -p ~/.ssh
