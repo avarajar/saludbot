@@ -36,7 +36,7 @@ import {
   updateConversationIntent,
 } from '@/lib/db/queries';
 import { classifyIntent } from '@/lib/ai/classifier';
-import { sendMessage } from '@/lib/whatsapp/client';
+import { sendMessage, validateWebhook } from '@/lib/whatsapp/client';
 
 function twilioRequest(overrides: Record<string, string> = {}): NextRequest {
   const form = new URLSearchParams({
@@ -119,5 +119,32 @@ describe('webhook idempotency', () => {
     expect(classifyIntent).toHaveBeenCalled();
     expect(updateConversationIntent).toHaveBeenCalledWith('conv-1', 'greeting');
     expect(sendMessage).toHaveBeenCalled();
+  });
+});
+
+describe('signature validation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getClinicByPhone).mockResolvedValue(clinic as never);
+    vi.mocked(getPatientByPhone).mockResolvedValue(patient as never);
+    vi.mocked(insertInboundConversation).mockResolvedValue({ conversation: { id: 'conv1' } as never, duplicate: false });
+  });
+
+  it('en produccion sin TWILIO_WEBHOOK_URL rechaza el mensaje', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('TWILIO_WEBHOOK_URL', '');
+    const res = await POST(twilioRequest());
+    expect(res.status).toBe(200); // TwiML vacío, pero sin procesar
+    expect(classifyIntent).not.toHaveBeenCalled();
+    vi.unstubAllEnvs();
+  });
+
+  it('en produccion con firma invalida rechaza el mensaje', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('TWILIO_WEBHOOK_URL', 'https://example.com/api/webhooks/whatsapp');
+    vi.mocked(validateWebhook).mockReturnValue(false);
+    const res = await POST(twilioRequest());
+    expect(classifyIntent).not.toHaveBeenCalled();
+    vi.unstubAllEnvs();
   });
 });

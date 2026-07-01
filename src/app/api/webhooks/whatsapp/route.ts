@@ -43,8 +43,15 @@ export async function POST(request: NextRequest) {
     // ── Validate webhook signature ────────────────────────────────────────
     const signature = request.headers.get('x-twilio-signature') || '';
     const webhookUrl = process.env.TWILIO_WEBHOOK_URL || '';
+    const isProduction = process.env.NODE_ENV === 'production';
 
-    if (webhookUrl && !validateWebhook(signature, webhookUrl, params)) {
+    if (isProduction) {
+      // Fail-closed: sin URL configurada o firma invalida, no se procesa.
+      if (!webhookUrl || !signature || !validateWebhook(signature, webhookUrl, params)) {
+        console.error('Twilio signature validation failed');
+        return twimlResponse('');
+      }
+    } else if (webhookUrl && !validateWebhook(signature, webhookUrl, params)) {
       return twimlResponse('');
     }
 
