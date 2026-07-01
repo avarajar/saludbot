@@ -5,6 +5,7 @@ import {
 } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { supabaseAdmin as getSupabase } from '@/lib/db/supabase';
+import { sendMessage } from '@/lib/whatsapp/client';
 import type {
   Appointment,
   Clinic,
@@ -13,20 +14,6 @@ import type {
 } from '@/types';
 
 const TIMEZONE = 'America/Bogota';
-
-async function sendWhatsAppMessage(to: string, body: string): Promise<void> {
-  const twilio = await import('twilio');
-  const client = twilio.default(
-    process.env.TWILIO_ACCOUNT_SID!,
-    process.env.TWILIO_AUTH_TOKEN!,
-  );
-
-  await client.messages.create({
-    from: `whatsapp:${process.env.TWILIO_WHATSAPP_NUMBER!}`,
-    to: `whatsapp:${to}`,
-    body,
-  });
-}
 
 /**
  * Generates a reminder message in Colombian Spanish using "usted" form.
@@ -157,7 +144,7 @@ export async function processReminders(): Promise<{
           patient,
         );
 
-        await sendWhatsAppMessage(patient.phone, message);
+        await sendMessage(patient.phone, message, clinic.whatsapp_number);
 
         // Mark reminder as sent on the appointment
         await supabase

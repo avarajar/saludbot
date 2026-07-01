@@ -65,6 +65,26 @@ describe('sendMessage', () => {
     expect(callArgs.from).toMatch(/^whatsapp:\+/);
     expect(callArgs.to).toMatch(/^whatsapp:\+/);
   });
+
+  it('usa el numero from provisto en lugar del global', async () => {
+    mockMessagesCreate.mockResolvedValueOnce({ sid: 'SM_from_test' });
+
+    await sendMessage('+573009876543', 'Hola', '+573100000001');
+    expect(mockMessagesCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ from: 'whatsapp:+573100000001' }),
+    );
+  });
+
+  it('cae al numero global cuando no se pasa from', async () => {
+    mockMessagesCreate.mockResolvedValueOnce({ sid: 'SM_default_test' });
+
+    await sendMessage('+573009876543', 'Hola');
+    expect(mockMessagesCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: `whatsapp:${process.env.TWILIO_WHATSAPP_NUMBER}`,
+      }),
+    );
+  });
 });
 
 describe('sendTemplateMessage', () => {

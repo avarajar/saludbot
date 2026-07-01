@@ -16,12 +16,19 @@ function getAuthToken() {
 
 /**
  * Send a free-form WhatsApp message via Twilio.
+ *
+ * `from` is the sender number without the `whatsapp:` prefix. When omitted,
+ * falls back to the global `TWILIO_WHATSAPP_NUMBER` env var.
  */
-export async function sendMessage(to: string, body: string): Promise<string> {
+export async function sendMessage(
+  to: string,
+  body: string,
+  from?: string,
+): Promise<string> {
   const client = getTwilioClient();
-  const from = getWhatsappNumber();
+  const sender = from || getWhatsappNumber();
   const message = await client.messages.create({
-    from: `whatsapp:${from}`,
+    from: `whatsapp:${sender}`,
     to: `whatsapp:${to}`,
     body,
   });
@@ -30,16 +37,20 @@ export async function sendMessage(to: string, body: string): Promise<string> {
 
 /**
  * Send a pre-approved WhatsApp template message via Twilio Content API.
+ *
+ * `from` is the sender number without the `whatsapp:` prefix. When omitted,
+ * falls back to the global `TWILIO_WHATSAPP_NUMBER` env var.
  */
 export async function sendTemplateMessage(
   to: string,
   templateSid: string,
   variables: Record<string, string>,
+  from?: string,
 ): Promise<string> {
   const client = getTwilioClient();
-  const from = getWhatsappNumber();
+  const sender = from || getWhatsappNumber();
   const message = await client.messages.create({
-    from: `whatsapp:${from}`,
+    from: `whatsapp:${sender}`,
     to: `whatsapp:${to}`,
     contentSid: templateSid,
     contentVariables: JSON.stringify(variables),

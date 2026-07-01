@@ -5,15 +5,14 @@ import type { Appointment, Clinic, Patient, ReminderType } from '@/types';
 
 const TIMEZONE = 'America/Bogota';
 
-// Mock twilio
-const { mockTwilioCreate } = vi.hoisted(() => ({
-  mockTwilioCreate: vi.fn().mockResolvedValue({ sid: 'SM123' }),
+// Mock the shared WhatsApp client instead of twilio directly, since the
+// engine now delegates sending to @/lib/whatsapp/client.
+const { mockSendMessage } = vi.hoisted(() => ({
+  mockSendMessage: vi.fn().mockResolvedValue('SM123'),
 }));
 
-vi.mock('twilio', () => ({
-  default: vi.fn(() => ({
-    messages: { create: mockTwilioCreate },
-  })),
+vi.mock('@/lib/whatsapp/client', () => ({
+  sendMessage: mockSendMessage,
 }));
 
 /**
@@ -244,12 +243,12 @@ describe('processReminders', () => {
     };
 
     setupMocks({ appointments: [appointment] });
-    mockTwilioCreate.mockResolvedValueOnce({ sid: 'SM123' });
+    mockSendMessage.mockResolvedValueOnce('SM123');
 
     const result = await processReminders();
 
     expect(result.sent48h).toBe(1);
-    expect(mockTwilioCreate).toHaveBeenCalled();
+    expect(mockSendMessage).toHaveBeenCalled();
   });
 
   it('sends a 24h reminder for appointments within the 24h window', async () => {
@@ -265,7 +264,7 @@ describe('processReminders', () => {
     };
 
     setupMocks({ appointments: [appointment] });
-    mockTwilioCreate.mockResolvedValueOnce({ sid: 'SM123' });
+    mockSendMessage.mockResolvedValueOnce('SM123');
 
     const result = await processReminders();
 
@@ -285,7 +284,7 @@ describe('processReminders', () => {
     };
 
     setupMocks({ appointments: [appointment] });
-    mockTwilioCreate.mockResolvedValueOnce({ sid: 'SM123' });
+    mockSendMessage.mockResolvedValueOnce('SM123');
 
     const result = await processReminders();
 
@@ -310,7 +309,7 @@ describe('processReminders', () => {
 
     // 48h was already sent, and 36h doesn't trigger 24h or 2h
     expect(result.sent48h).toBe(0);
-    expect(mockTwilioCreate).not.toHaveBeenCalled();
+    expect(mockSendMessage).not.toHaveBeenCalled();
   });
 
   it('skips appointments with missing clinic or patient data', async () => {
@@ -331,7 +330,7 @@ describe('processReminders', () => {
     const result = await processReminders();
 
     expect(result.sent48h).toBe(0);
-    expect(mockTwilioCreate).not.toHaveBeenCalled();
+    expect(mockSendMessage).not.toHaveBeenCalled();
   });
 
   it('increments errors count when WhatsApp message fails', async () => {
@@ -344,7 +343,7 @@ describe('processReminders', () => {
     };
 
     setupMocks({ appointments: [appointment] });
-    mockTwilioCreate.mockRejectedValueOnce(new Error('Twilio error'));
+    mockSendMessage.mockRejectedValueOnce(new Error('Twilio error'));
 
     const result = await processReminders();
 

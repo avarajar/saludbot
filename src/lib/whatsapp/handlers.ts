@@ -275,7 +275,7 @@ export async function handleEscalate(
     // Notify the clinic owner via WhatsApp
     const ownerNotification = `Atencion ${clinic.owner_name}: El paciente ${patient.name || patient.phone} solicita atencion directa.\n\nMensaje: "${message}"\n\nTelefono: ${patient.phone}`;
 
-    await sendMessage(clinic.phone, ownerNotification);
+    await sendMessage(clinic.phone, ownerNotification, clinic.whatsapp_number);
 
     return await generateResponse('escalate', {
       clinicName: clinic.name,

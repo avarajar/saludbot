@@ -459,10 +459,12 @@ describe('handleEscalate', () => {
     expect(sendMessage).toHaveBeenCalledWith(
       '+573001234567',
       expect.stringContaining('Maria Lopez'),
+      '+573001234567',
     );
     expect(sendMessage).toHaveBeenCalledWith(
       '+573001234567',
       expect.stringContaining('Tengo una urgencia'),
+      '+573001234567',
     );
     expect(result).toContain('equipo');
   });
