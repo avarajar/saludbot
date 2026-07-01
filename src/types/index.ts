@@ -145,3 +145,39 @@ export interface ReminderLog {
   sent_at: string;
   status: ReminderStatus;
 }
+
+// ── Conversation Session ────────────────────────────────────────────────────
+
+export type SessionState =
+  | 'idle'
+  | 'awaiting_service'
+  | 'awaiting_slot'
+  | 'awaiting_name'
+  | 'awaiting_reschedule_slot'
+  | 'awaiting_reminder_reply';
+
+export interface AvailableSlot {
+  date: string; // YYYY-MM-DD
+  time: string; // HH:MM
+}
+
+export interface SessionContext {
+  flow?: 'schedule' | 'reschedule';
+  service_name?: string;
+  duration_minutes?: number;
+  offered_services?: string[];
+  offered_slots?: AvailableSlot[];
+  chosen_slot?: AvailableSlot;
+  appointment_id?: string;
+}
+
+export interface ConversationSession {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  state: SessionState;
+  context: SessionContext;
+  expires_at: string;
+  created_at: string;
+  updated_at: string;
+}
