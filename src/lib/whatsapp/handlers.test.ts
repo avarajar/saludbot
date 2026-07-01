@@ -18,6 +18,10 @@ vi.mock('@/lib/ai/responder', () => ({
   generateResponse: vi.fn(),
 }));
 
+vi.mock('./flow', () => ({
+  startScheduleFlow: vi.fn(),
+}));
+
 import {
   handleSchedule,
   handleConfirm,
@@ -36,6 +40,7 @@ import {
 } from '@/lib/db/queries';
 import { sendMessage } from '@/lib/whatsapp/client';
 import { generateResponse } from '@/lib/ai/responder';
+import { startScheduleFlow } from './flow';
 
 // Test fixtures
 const mockClinic: Clinic = {
@@ -124,62 +129,39 @@ const mockAppointment: Appointment = {
 
 describe('handleSchedule', () => {
   beforeEach(() => {
-    vi.mocked(getAvailableSlots).mockReset();
-    vi.mocked(generateResponse).mockReset();
+    vi.mocked(startScheduleFlow).mockReset();
   });
 
-  it('fetches available slots and generates a schedule response', async () => {
-    vi.mocked(getAvailableSlots).mockResolvedValueOnce([
-      { date: '2026-03-10', time: '10:00' },
-      { date: '2026-03-10', time: '14:00' },
-    ]);
-    vi.mocked(generateResponse).mockResolvedValueOnce(
-      'Tenemos disponibilidad el 10 de marzo a las 10:00 y 14:00.',
+  it('delegates to startScheduleFlow and returns its reply', async () => {
+    vi.mocked(startScheduleFlow).mockResolvedValueOnce(
+      'Estos son los horarios disponibles para Limpieza dental:\n1. lunes...',
     );
 
     const result = await handleSchedule(mockClinic, mockPatient, { date: '2026-03-10' }, mockServices);
 
-    expect(getAvailableSlots).toHaveBeenCalledWith(mockClinic, { date: '2026-03-10' });
-    expect(generateResponse).toHaveBeenCalledWith('schedule', expect.objectContaining({
-      clinicName: 'Clinica Dental Sonrisa',
-      patientName: 'Maria Lopez',
-    }));
-    expect(result).toContain('disponibilidad');
+    expect(startScheduleFlow).toHaveBeenCalledWith(
+      mockClinic, mockPatient, { date: '2026-03-10' }, mockServices,
+    );
+    expect(result).toContain('horarios disponibles');
   });
 
-  it('limits available slots to 5 for WhatsApp readability', async () => {
-    const manySlots = Array.from({ length: 10 }, (_, i) => ({
-      date: '2026-03-10',
-      time: `${8 + i}:00`,
-    }));
+  it('passes entities and services through unchanged', async () => {
+    vi.mocked(startScheduleFlow).mockResolvedValueOnce('Respuesta');
 
-    vi.mocked(getAvailableSlots).mockResolvedValueOnce(manySlots);
-    vi.mocked(generateResponse).mockResolvedValueOnce('Horarios disponibles');
+    await handleSchedule(mockClinic, mockPatient, { service_type: 'Blanqueamiento' }, mockServices);
 
-    await handleSchedule(mockClinic, mockPatient, {}, mockServices);
-
-    const responseCall = vi.mocked(generateResponse).mock.calls[0];
-    const context = responseCall[1];
-    expect(context.availableSlots!.length).toBeLessThanOrEqual(5);
+    expect(startScheduleFlow).toHaveBeenCalledWith(
+      mockClinic, mockPatient, { service_type: 'Blanqueamiento' }, mockServices,
+    );
   });
 
   it('returns a fallback message on error', async () => {
-    vi.mocked(getAvailableSlots).mockRejectedValueOnce(new Error('DB error'));
+    vi.mocked(startScheduleFlow).mockRejectedValueOnce(new Error('DB error'));
 
     const result = await handleSchedule(mockClinic, mockPatient, {}, mockServices);
 
     expect(result).toContain('Clinica Dental Sonrisa');
     expect(result).toContain('agendar');
-  });
-
-  it('passes service type entity when available', async () => {
-    vi.mocked(getAvailableSlots).mockResolvedValueOnce([]);
-    vi.mocked(generateResponse).mockResolvedValueOnce('Respuesta');
-
-    await handleSchedule(mockClinic, mockPatient, { service_type: 'Blanqueamiento' }, mockServices);
-
-    const context = vi.mocked(generateResponse).mock.calls[0][1];
-    expect(context.appointmentDetails).toEqual({ service: 'Blanqueamiento' });
   });
 });
 

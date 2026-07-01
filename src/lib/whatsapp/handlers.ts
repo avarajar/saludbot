@@ -3,11 +3,11 @@ import {
   getClinicServices,
   getAvailableSlots,
   getUpcomingAppointment,
-  createAppointment,
   updateAppointmentStatus,
 } from '@/lib/db/queries';
 import { sendMessage } from '@/lib/whatsapp/client';
 import { generateResponse } from '@/lib/ai/responder';
+import { startScheduleFlow } from './flow';
 
 // ── Schedule ────────────────────────────────────────────────────────────────
 
@@ -18,28 +18,7 @@ export async function handleSchedule(
   services: ClinicService[],
 ): Promise<string> {
   try {
-    const preferredDate = entities.date;
-    const preferredService = entities.service_type;
-
-    const availableSlots = await getAvailableSlots(clinic, {
-      date: preferredDate || undefined,
-    });
-
-    const slotStrings = availableSlots.map(
-      (slot) => `${slot.date} a las ${slot.time}`,
-    );
-
-    return await generateResponse('schedule', {
-      clinicName: clinic.name,
-      patientName: patient.name,
-      availableSlots: slotStrings.slice(0, 5), // Max 5 options for WhatsApp readability
-      services: services.map((s) =>
-        s.price ? `${s.name} ($${s.price.toLocaleString('es-CO')})` : s.name,
-      ),
-      appointmentDetails: preferredService
-        ? { service: preferredService }
-        : undefined,
-    });
+    return await startScheduleFlow(clinic, patient, entities, services);
   } catch (error) {
     console.error('Error handling schedule:', error);
     return `Con mucho gusto le ayudo a agendar su cita en ${clinic.name}. En este momento no puedo consultar la disponibilidad, por favor intentelo de nuevo en unos minutos.`;
