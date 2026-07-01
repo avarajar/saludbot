@@ -6,6 +6,8 @@ import {
   createPatient,
   getClinicServices,
   logConversation,
+  insertInboundConversation,
+  updateConversationIntent,
 } from '@/lib/db/queries';
 import { sendMessage, validateWebhook } from '@/lib/whatsapp/client';
 import { classifyIntent } from '@/lib/ai/classifier';
@@ -68,6 +70,21 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // ── Log inbound conversation (idempotent on whatsapp_message_id) ───────
+    const { conversation: inbound, duplicate } = await insertInboundConversation({
+      clinic_id: clinic.id,
+      patient_id: patient.id,
+      whatsapp_message_id: messageSid,
+      message: body,
+      intent: null,
+    });
+
+    if (duplicate) {
+      // Already processed this MessageSid (Twilio retry) — do not
+      // reclassify or respond again.
+      return twimlResponse('');
+    }
+
     // ── Classify intent ───────────────────────────────────────────────────
     const services = await getClinicServices(clinic.id);
     const classification = await classifyIntent(body, {
@@ -81,15 +98,9 @@ export async function POST(request: NextRequest) {
       patient.name = classification.entities.patient_name;
     }
 
-    // ── Log inbound conversation ──────────────────────────────────────────
-    await logConversation({
-      clinic_id: clinic.id,
-      patient_id: patient.id,
-      whatsapp_message_id: messageSid,
-      direction: 'inbound',
-      message: body,
-      intent: classification.intent,
-    });
+    if (inbound) {
+      await updateConversationIntent(inbound.id, classification.intent);
+    }
 
     // ── Route to handler ──────────────────────────────────────────────────
     let responseMessage: string;

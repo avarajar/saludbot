@@ -5,6 +5,7 @@ import type {
   Clinic,
   ClinicService,
   Conversation,
+  ConversationIntent,
   Patient,
   ReminderType,
 } from '@/types';
@@ -335,6 +336,49 @@ export async function logConversation(
   }
 
   return conversation;
+}
+
+/**
+ * Inserts an inbound conversation row before classification, relying on the
+ * partial unique index on (whatsapp_message_id) where direction = 'inbound'
+ * to guard against Twilio retry duplicates.
+ *
+ * Returns `duplicate: true` (and a null conversation) when the insert
+ * violates the unique constraint, so the caller can short-circuit without
+ * classifying or responding again.
+ */
+export async function insertInboundConversation(
+  data: Partial<Conversation>,
+): Promise<{ conversation: Conversation | null; duplicate: boolean }> {
+  const { data: conversation, error } = await getAdmin()
+    .from('conversations')
+    .insert({ ...data, direction: 'inbound' })
+    .select('*')
+    .single();
+
+  if (error) {
+    if (error.code === '23505') {
+      return { conversation: null, duplicate: true };
+    }
+    throw new Error(`insertInboundConversation failed: ${error.message}`);
+  }
+  return { conversation, duplicate: false };
+}
+
+/**
+ * Updates the classified intent on an already-logged inbound conversation row.
+ */
+export async function updateConversationIntent(
+  id: string,
+  intent: ConversationIntent,
+): Promise<void> {
+  const { error } = await getAdmin()
+    .from('conversations')
+    .update({ intent })
+    .eq('id', id);
+  if (error) {
+    throw new Error(`updateConversationIntent failed: ${error.message}`);
+  }
 }
 
 // ---------------------------------------------------------------------------
