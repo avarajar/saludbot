@@ -139,7 +139,7 @@ describe('handleSchedule', () => {
 
     const result = await handleSchedule(mockClinic, mockPatient, { date: '2026-03-10' }, mockServices);
 
-    expect(getAvailableSlots).toHaveBeenCalledWith('clinic-001', '2026-03-10');
+    expect(getAvailableSlots).toHaveBeenCalledWith(mockClinic, { date: '2026-03-10' });
     expect(generateResponse).toHaveBeenCalledWith('schedule', expect.objectContaining({
       clinicName: 'Clinica Dental Sonrisa',
       patientName: 'Maria Lopez',
@@ -292,7 +292,7 @@ describe('handleReschedule', () => {
     const result = await handleReschedule(mockClinic, mockPatient, { date: '2026-03-12' });
 
     expect(updateAppointmentStatus).toHaveBeenCalledWith('appt-001', 'rescheduled');
-    expect(getAvailableSlots).toHaveBeenCalledWith('clinic-001', '2026-03-12');
+    expect(getAvailableSlots).toHaveBeenCalledWith(mockClinic, { date: '2026-03-12' });
     expect(result).toContain('reagendar');
   });
 

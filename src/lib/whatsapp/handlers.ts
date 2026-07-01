@@ -21,10 +21,9 @@ export async function handleSchedule(
     const preferredDate = entities.date;
     const preferredService = entities.service_type;
 
-    const availableSlots = await getAvailableSlots(
-      clinic.id,
-      preferredDate || undefined,
-    );
+    const availableSlots = await getAvailableSlots(clinic, {
+      date: preferredDate || undefined,
+    });
 
     const slotStrings = availableSlots.map(
       (slot) => `${slot.date} a las ${slot.time}`,
@@ -138,10 +137,9 @@ export async function handleReschedule(
     await updateAppointmentStatus(appointment.id, 'rescheduled');
 
     const preferredDate = entities.date;
-    const availableSlots = await getAvailableSlots(
-      clinic.id,
-      preferredDate || undefined,
-    );
+    const availableSlots = await getAvailableSlots(clinic, {
+      date: preferredDate || undefined,
+    });
 
     const slotStrings = availableSlots.map(
       (slot) => `${slot.date} a las ${slot.time}`,
