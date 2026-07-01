@@ -147,4 +147,13 @@ describe('signature validation', () => {
     expect(classifyIntent).not.toHaveBeenCalled();
     vi.unstubAllEnvs();
   });
+
+  it('en produccion sin header de firma rechaza el mensaje', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('TWILIO_WEBHOOK_URL', 'https://example.com/api/webhooks/whatsapp');
+    const res = await POST(twilioRequest());
+    expect(res.status).toBe(200); // TwiML vacío, pero sin procesar
+    expect(classifyIntent).not.toHaveBeenCalled();
+    vi.unstubAllEnvs();
+  });
 });
