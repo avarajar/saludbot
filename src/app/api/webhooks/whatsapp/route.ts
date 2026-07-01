@@ -4,6 +4,7 @@ import {
   getClinicByPhone,
   getPatientByPhone,
   createPatient,
+  updatePatient,
   getClinicServices,
   logConversation,
   insertInboundConversation,
@@ -102,7 +103,9 @@ export async function POST(request: NextRequest) {
 
     // Update patient name if extracted and not yet set
     if (classification.entities.patient_name && !patient.name) {
-      patient.name = classification.entities.patient_name;
+      patient = await updatePatient(patient.id, {
+        name: classification.entities.patient_name,
+      });
     }
 
     if (inbound) {
@@ -179,13 +182,13 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Send response via Twilio ──────────────────────────────────────────
-    await sendMessage(from, responseMessage);
+    const outboundSid = await sendMessage(from, responseMessage, clinic.whatsapp_number);
 
     // ── Log outbound conversation ─────────────────────────────────────────
     await logConversation({
       clinic_id: clinic.id,
       patient_id: patient.id,
-      whatsapp_message_id: '',
+      whatsapp_message_id: outboundSid,
       direction: 'outbound',
       message: responseMessage,
       intent: classification.intent,

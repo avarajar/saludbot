@@ -34,9 +34,12 @@ import {
   getPatientByPhone,
   insertInboundConversation,
   updateConversationIntent,
+  updatePatient,
+  logConversation,
 } from '@/lib/db/queries';
 import { classifyIntent } from '@/lib/ai/classifier';
 import { sendMessage, validateWebhook } from '@/lib/whatsapp/client';
+import { handleGreeting } from '@/lib/whatsapp/handlers';
 
 function twilioRequest(overrides: Record<string, string> = {}): NextRequest {
   const form = new URLSearchParams({
@@ -156,5 +159,40 @@ describe('signature validation', () => {
     expect(res.status).toBe(200); // TwiML vacío, pero sin procesar
     expect(classifyIntent).not.toHaveBeenCalled();
     vi.unstubAllEnvs();
+  });
+});
+
+describe('persistencia de nombre y SID saliente', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(validateWebhook).mockReturnValue(true);
+    vi.mocked(getClinicByPhone).mockResolvedValue(clinic as never);
+    vi.mocked(getPatientByPhone).mockResolvedValue(patient as never);
+    vi.mocked(sendMessage).mockResolvedValue('SM_out');
+  });
+
+  it('persiste el nombre extraido cuando el paciente no tiene nombre', async () => {
+    vi.mocked(getPatientByPhone).mockResolvedValue({ ...patient, name: '' } as never);
+    vi.mocked(insertInboundConversation).mockResolvedValue({ conversation: { id: 'conv1' } as never, duplicate: false });
+    vi.mocked(classifyIntent).mockResolvedValue({
+      intent: 'greeting', confidence: 0.9,
+      entities: { patient_name: 'Carlos Ruiz' },
+    } as never);
+    vi.mocked(updatePatient).mockResolvedValue({ ...patient, name: 'Carlos Ruiz' } as never);
+    vi.mocked(handleGreeting).mockResolvedValue('Bienvenido');
+
+    await POST(twilioRequest());
+    expect(updatePatient).toHaveBeenCalledWith('p1', { name: 'Carlos Ruiz' });
+  });
+
+  it('guarda el SID del mensaje saliente en el log', async () => {
+    vi.mocked(insertInboundConversation).mockResolvedValue({ conversation: { id: 'conv1' } as never, duplicate: false });
+    vi.mocked(classifyIntent).mockResolvedValue({ intent: 'greeting', confidence: 0.9, entities: {} } as never);
+    vi.mocked(handleGreeting).mockResolvedValue('Bienvenido');
+
+    await POST(twilioRequest());
+    expect(logConversation).toHaveBeenCalledWith(
+      expect.objectContaining({ direction: 'outbound', whatsapp_message_id: 'SM_out' }),
+    );
   });
 });
