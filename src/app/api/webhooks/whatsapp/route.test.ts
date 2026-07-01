@@ -125,6 +125,7 @@ describe('webhook idempotency', () => {
 describe('signature validation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(validateWebhook).mockReturnValue(true);
     vi.mocked(getClinicByPhone).mockResolvedValue(clinic as never);
     vi.mocked(getPatientByPhone).mockResolvedValue(patient as never);
     vi.mocked(insertInboundConversation).mockResolvedValue({ conversation: { id: 'conv1' } as never, duplicate: false });
