@@ -136,6 +136,19 @@ export async function processReminders(): Promise<{
     }
 
     for (const reminder of remindersToSend) {
+      // Atomic claim: only proceed if the flag was still false. This prevents
+      // duplicate sends when the cron overlaps with a concurrent run.
+      const { data: claimed, error: claimError } = await supabase
+        .from('appointments')
+        .update({ [reminder.flag]: true })
+        .eq('id', appointment.id)
+        .eq(reminder.flag, false)
+        .select('id');
+
+      if (claimError || !claimed || claimed.length === 0) {
+        continue;
+      }
+
       try {
         const message = generateReminderMessage(
           reminder.type,
@@ -145,12 +158,6 @@ export async function processReminders(): Promise<{
         );
 
         await sendMessage(patient.phone, message, clinic.whatsapp_number);
-
-        // Mark reminder as sent on the appointment
-        await supabase
-          .from('appointments')
-          .update({ [reminder.flag]: true })
-          .eq('id', appointment.id);
 
         // Log the reminder
         await supabase.from('reminder_logs').insert({
@@ -176,6 +183,12 @@ export async function processReminders(): Promise<{
           `Failed to send ${reminder.type} reminder for appointment ${appointment.id}:`,
           err,
         );
+
+        // Revert the claim so the next cron run retries the send.
+        await supabase
+          .from('appointments')
+          .update({ [reminder.flag]: false })
+          .eq('id', appointment.id);
 
         // Log the failed attempt
         await supabase.from('reminder_logs').insert({

@@ -175,12 +175,19 @@ describe('processReminders', () => {
     appointmentsError?: { message: string } | null;
     clinics?: Clinic[];
     patients?: Patient[];
+    // Result returned by the atomic claim update (`.update().eq().eq().select('id')`).
+    // Defaults to a successful claim (non-empty rows) so existing tests that
+    // don't care about the claim step keep exercising the send path.
+    claimResult?: { id: string }[] | null;
+    claimError?: { message: string } | null;
   }) {
     const {
       appointments = [],
       appointmentsError = null,
       clinics = [mockClinic],
       patients = [mockPatient],
+      claimResult = [{ id: 'claimed' }],
+      claimError = null,
     } = options;
 
     // Appointments chain (for query, update, and reminder_logs insert)
@@ -188,7 +195,9 @@ describe('processReminders', () => {
       data: appointmentsError ? null : appointments,
       error: appointmentsError,
     });
-    const appointmentsUpdateChain = createChain({ data: null, error: null });
+    // Shared by both the atomic claim (`update().eq().eq().select()`) and the
+    // revert-on-failure (`update().eq()`) calls against `appointments`.
+    const appointmentsUpdateChain = createChain({ data: claimResult, error: claimError });
     const clinicsChain = createChain({ data: clinics, error: null });
     const patientsChain = createChain({ data: patients, error: null });
     const reminderLogsChain = createChain({ data: null, error: null });
@@ -348,5 +357,47 @@ describe('processReminders', () => {
     const result = await processReminders();
 
     expect(result.errors).toBe(1);
+  });
+
+  it('reclama el flag antes de enviar y lo revierte si el envio falla', async () => {
+    const { date: dateStr, time: timeStr } = appointmentInBogota(36);
+
+    const appointment: Appointment = {
+      ...mockAppointment,
+      date: dateStr,
+      start_time: timeStr,
+    };
+
+    const { appointmentsUpdateChain } = setupMocks({ appointments: [appointment] });
+    mockSendMessage.mockRejectedValueOnce(new Error('Twilio down'));
+
+    const result = await processReminders();
+
+    expect(result.errors).toBe(1);
+
+    const updateMock = appointmentsUpdateChain.update as ReturnType<typeof vi.fn>;
+    const updateCalls = updateMock.mock.calls.map((c: unknown[]) => c[0]);
+    // The flag was claimed (set to true) before attempting to send...
+    expect(updateCalls).toContainEqual({ reminder_48h_sent: true });
+    // ...and reverted back to false after the send failed, so a later run can retry.
+    expect(updateCalls).toContainEqual({ reminder_48h_sent: false });
+  });
+
+  it('no envia si otro proceso ya reclamo el flag (update no retorna filas)', async () => {
+    const { date: dateStr, time: timeStr } = appointmentInBogota(36);
+
+    const appointment: Appointment = {
+      ...mockAppointment,
+      date: dateStr,
+      start_time: timeStr,
+    };
+
+    setupMocks({ appointments: [appointment], claimResult: [] });
+
+    const result = await processReminders();
+
+    expect(mockSendMessage).not.toHaveBeenCalled();
+    expect(result.sent48h).toBe(0);
+    expect(result.errors).toBe(0);
   });
 });
