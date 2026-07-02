@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { ConversationIntent } from '@/types';
 import {
-  getClinicByPhone,
   getPatientByPhone,
   createPatient,
   updatePatient,
@@ -11,6 +10,7 @@ import {
   insertInboundConversation,
   updateConversationIntent,
 } from '@/lib/db/queries';
+import { resolveClinic, saveRoutingSession } from '@/lib/db/routing';
 import { sendMessage, validateWebhook } from '@/lib/whatsapp/client';
 import { classifyIntent } from '@/lib/ai/classifier';
 import { generateResponse } from '@/lib/ai/responder';
@@ -59,13 +59,23 @@ export async function POST(request: NextRequest) {
       return twimlResponse('');
     }
 
-    // ── Look up clinic by Twilio number ───────────────────────────────────
-    const clinic = await getClinicByPhone(to);
+    // ── Resolve clinic for the (possibly shared) Twilio number ──────────────
+    const resolution = await resolveClinic(to, from, body);
 
-    if (!clinic) {
-      console.error(`No clinic found for WhatsApp number: ${to}`);
+    if (resolution.status === 'none') {
+      console.error(`No clinic resolved for message to ${to} from ${from}`);
       return twimlResponse('');
     }
+
+    if (resolution.status === 'ambiguous') {
+      await saveRoutingSession(from, resolution.candidates.map((c) => c.id));
+      const list = resolution.candidates.map((c, i) => `${i + 1}. ${c.name}`).join('\n');
+      return twimlResponse(
+        `Hola, ¿con cual clinica desea comunicarse?\n${list}\nResponda con el numero.`,
+      );
+    }
+
+    const clinic = resolution.clinic;
 
     // ── Look up or create patient ─────────────────────────────────────────
     let patient = await getPatientByPhone(clinic.id, from);

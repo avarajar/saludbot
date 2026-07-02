@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
 vi.mock('@/lib/db/queries', () => ({
-  getClinicByPhone: vi.fn(),
   getPatientByPhone: vi.fn(),
   createPatient: vi.fn(),
   updatePatient: vi.fn(),
@@ -11,6 +10,10 @@ vi.mock('@/lib/db/queries', () => ({
   logConversation: vi.fn(),
   insertInboundConversation: vi.fn(),
   updateConversationIntent: vi.fn(),
+}));
+vi.mock('@/lib/db/routing', () => ({
+  resolveClinic: vi.fn(),
+  saveRoutingSession: vi.fn(),
 }));
 vi.mock('@/lib/whatsapp/client', () => ({
   sendMessage: vi.fn().mockResolvedValue('SM_out'),
@@ -38,7 +41,6 @@ vi.mock('@/lib/whatsapp/flow', () => ({
 
 import { POST } from './route';
 import {
-  getClinicByPhone,
   getPatientByPhone,
   insertInboundConversation,
   updateConversationIntent,
@@ -46,6 +48,7 @@ import {
   logConversation,
   getRecentConversations,
 } from '@/lib/db/queries';
+import { resolveClinic, saveRoutingSession } from '@/lib/db/routing';
 import { classifyIntent } from '@/lib/ai/classifier';
 import { sendMessage, validateWebhook } from '@/lib/whatsapp/client';
 import { handleGreeting, handleInfoHours } from '@/lib/whatsapp/handlers';
@@ -81,7 +84,7 @@ const patient = { id: 'p1', clinic_id: 'c1', name: 'Maria', phone: '+57300987654
 describe('webhook idempotency', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getClinicByPhone).mockResolvedValue(clinic as never);
+    vi.mocked(resolveClinic).mockResolvedValue({ status: 'resolved', clinic } as never);
     vi.mocked(getPatientByPhone).mockResolvedValue(patient as never);
     vi.mocked(getActiveSession).mockResolvedValue(null);
     vi.mocked(getRecentConversations).mockResolvedValue([]);
@@ -142,7 +145,7 @@ describe('signature validation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(validateWebhook).mockReturnValue(true);
-    vi.mocked(getClinicByPhone).mockResolvedValue(clinic as never);
+    vi.mocked(resolveClinic).mockResolvedValue({ status: 'resolved', clinic } as never);
     vi.mocked(getPatientByPhone).mockResolvedValue(patient as never);
     vi.mocked(insertInboundConversation).mockResolvedValue({ conversation: { id: 'conv1' } as never, duplicate: false });
     vi.mocked(getActiveSession).mockResolvedValue(null);
@@ -181,7 +184,7 @@ describe('persistencia de nombre y SID saliente', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(validateWebhook).mockReturnValue(true);
-    vi.mocked(getClinicByPhone).mockResolvedValue(clinic as never);
+    vi.mocked(resolveClinic).mockResolvedValue({ status: 'resolved', clinic } as never);
     vi.mocked(getPatientByPhone).mockResolvedValue(patient as never);
     vi.mocked(sendMessage).mockResolvedValue('SM_out');
     vi.mocked(getActiveSession).mockResolvedValue(null);
@@ -218,7 +221,7 @@ describe('sesiones activas', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(validateWebhook).mockReturnValue(true);
-    vi.mocked(getClinicByPhone).mockResolvedValue(clinic as never);
+    vi.mocked(resolveClinic).mockResolvedValue({ status: 'resolved', clinic } as never);
     vi.mocked(getPatientByPhone).mockResolvedValue(patient as never);
     vi.mocked(sendMessage).mockResolvedValue('SM_out');
     vi.mocked(getActiveSession).mockResolvedValue(null);
@@ -255,7 +258,7 @@ describe('historial de clasificación', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(validateWebhook).mockReturnValue(true);
-    vi.mocked(getClinicByPhone).mockResolvedValue(clinic as never);
+    vi.mocked(resolveClinic).mockResolvedValue({ status: 'resolved', clinic } as never);
     vi.mocked(getPatientByPhone).mockResolvedValue(patient as never);
     vi.mocked(sendMessage).mockResolvedValue('SM_out');
     vi.mocked(getActiveSession).mockResolvedValue(null);
@@ -302,5 +305,54 @@ describe('historial de clasificación', () => {
     };
     expect(options.history).toHaveLength(1);
     expect(options.history[0]).toEqual({ direction: 'inbound', message: '1' });
+  });
+});
+
+describe('resolucion de clinica para numero compartido', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(validateWebhook).mockReturnValue(true);
+    vi.mocked(getPatientByPhone).mockResolvedValue(patient as never);
+    vi.mocked(sendMessage).mockResolvedValue('SM_out');
+    vi.mocked(getActiveSession).mockResolvedValue(null);
+    vi.mocked(getRecentConversations).mockResolvedValue([]);
+    vi.mocked(insertInboundConversation).mockResolvedValue({
+      conversation: { id: 'conv1' } as never,
+      duplicate: false,
+    });
+  });
+
+  it('ambigua: guarda la sesion de routing y responde con la lista numerada, sin procesar el mensaje', async () => {
+    const clinicA = { id: 'ca', name: 'Clinica A' };
+    const clinicB = { id: 'cb', name: 'Clinica B' };
+    vi.mocked(resolveClinic).mockResolvedValue({
+      status: 'ambiguous',
+      candidates: [clinicA, clinicB],
+    } as never);
+
+    const res = await POST(twilioRequest());
+    const body = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(saveRoutingSession).toHaveBeenCalledWith('+573009876543', ['ca', 'cb']);
+    expect(body).toContain('1. Clinica A');
+    expect(body).toContain('2. Clinica B');
+    expect(getPatientByPhone).not.toHaveBeenCalled();
+    expect(classifyIntent).not.toHaveBeenCalled();
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('sin clinica resuelta: responde con TwiML vacio y no procesa nada', async () => {
+    vi.mocked(resolveClinic).mockResolvedValue({ status: 'none' } as never);
+
+    const res = await POST(twilioRequest());
+    const body = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(body).not.toContain('<Message>');
+    expect(saveRoutingSession).not.toHaveBeenCalled();
+    expect(getPatientByPhone).not.toHaveBeenCalled();
+    expect(classifyIntent).not.toHaveBeenCalled();
+    expect(sendMessage).not.toHaveBeenCalled();
   });
 });
