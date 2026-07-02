@@ -20,6 +20,7 @@ vi.mock('@/lib/ai/responder', () => ({
 
 vi.mock('./flow', () => ({
   startScheduleFlow: vi.fn(),
+  startRescheduleFlow: vi.fn(),
 }));
 
 import {
@@ -34,13 +35,12 @@ import {
 } from './handlers';
 import {
   getClinicServices,
-  getAvailableSlots,
   getUpcomingAppointment,
   updateAppointmentStatus,
 } from '@/lib/db/queries';
 import { sendMessage } from '@/lib/whatsapp/client';
 import { generateResponse } from '@/lib/ai/responder';
-import { startScheduleFlow } from './flow';
+import { startScheduleFlow, startRescheduleFlow } from './flow';
 
 // Test fixtures
 const mockClinic: Clinic = {
@@ -253,46 +253,34 @@ describe('handleCancel', () => {
 
 describe('handleReschedule', () => {
   beforeEach(() => {
-    vi.mocked(getUpcomingAppointment).mockReset();
-    vi.mocked(updateAppointmentStatus).mockReset();
-    vi.mocked(getAvailableSlots).mockReset();
-    vi.mocked(generateResponse).mockReset();
+    vi.mocked(startRescheduleFlow).mockReset();
   });
 
-  it('reschedules an existing appointment and shows new available slots', async () => {
-    vi.mocked(getUpcomingAppointment).mockResolvedValueOnce(mockAppointment);
-    vi.mocked(updateAppointmentStatus).mockResolvedValueOnce({
-      ...mockAppointment,
-      status: 'rescheduled',
-    });
-    vi.mocked(getAvailableSlots).mockResolvedValueOnce([
-      { date: '2026-03-12', time: '09:00' },
-      { date: '2026-03-12', time: '11:00' },
-    ]);
-    vi.mocked(generateResponse).mockResolvedValueOnce('Podemos reagendar para el 12 de marzo.');
+  it('delegates to startRescheduleFlow and returns its reply', async () => {
+    vi.mocked(startRescheduleFlow).mockResolvedValueOnce(
+      'Estos son los horarios disponibles para reagendar:\n1. lunes...',
+    );
 
     const result = await handleReschedule(mockClinic, mockPatient, { date: '2026-03-12' });
 
-    expect(updateAppointmentStatus).toHaveBeenCalledWith('appt-001', 'rescheduled');
-    expect(getAvailableSlots).toHaveBeenCalledWith(mockClinic, { date: '2026-03-12' });
-    expect(result).toContain('reagendar');
+    expect(startRescheduleFlow).toHaveBeenCalledWith(
+      mockClinic, mockPatient, { date: '2026-03-12' },
+    );
+    expect(result).toContain('horarios disponibles');
   });
 
-  it('falls back to "other" response when no upcoming appointment is found', async () => {
-    vi.mocked(getUpcomingAppointment).mockResolvedValueOnce(null);
-    vi.mocked(generateResponse).mockResolvedValueOnce('No encontramos citas pendientes.');
+  it('passes entities through unchanged', async () => {
+    vi.mocked(startRescheduleFlow).mockResolvedValueOnce('Respuesta');
 
     await handleReschedule(mockClinic, mockPatient, {});
 
-    expect(generateResponse).toHaveBeenCalledWith('other', expect.objectContaining({
-      clinicName: 'Clinica Dental Sonrisa',
-    }));
-    expect(updateAppointmentStatus).not.toHaveBeenCalled();
-    expect(getAvailableSlots).not.toHaveBeenCalled();
+    expect(startRescheduleFlow).toHaveBeenCalledWith(
+      mockClinic, mockPatient, {},
+    );
   });
 
   it('returns a fallback message on error', async () => {
-    vi.mocked(getUpcomingAppointment).mockRejectedValueOnce(new Error('DB error'));
+    vi.mocked(startRescheduleFlow).mockRejectedValueOnce(new Error('DB error'));
 
     const result = await handleReschedule(mockClinic, mockPatient, {});
 

@@ -1,13 +1,12 @@
 import type { Clinic, Patient, ClinicService, Appointment, BusinessHours } from '@/types';
 import {
   getClinicServices,
-  getAvailableSlots,
   getUpcomingAppointment,
   updateAppointmentStatus,
 } from '@/lib/db/queries';
 import { sendMessage } from '@/lib/whatsapp/client';
 import { generateResponse } from '@/lib/ai/responder';
-import { startScheduleFlow } from './flow';
+import { startScheduleFlow, startRescheduleFlow } from './flow';
 
 // ── Schedule ────────────────────────────────────────────────────────────────
 
@@ -103,38 +102,7 @@ export async function handleReschedule(
   entities: Record<string, string>,
 ): Promise<string> {
   try {
-    const appointment = await getUpcomingAppointment(clinic.id, patient.id);
-
-    if (!appointment) {
-      return await generateResponse('other', {
-        clinicName: clinic.name,
-        patientName: patient.name,
-      });
-    }
-
-    // Mark the current appointment as rescheduled
-    await updateAppointmentStatus(appointment.id, 'rescheduled');
-
-    const preferredDate = entities.date;
-    const availableSlots = await getAvailableSlots(clinic, {
-      date: preferredDate || undefined,
-    });
-
-    const slotStrings = availableSlots.map(
-      (slot) => `${slot.date} a las ${slot.time}`,
-    );
-
-    return await generateResponse('reschedule', {
-      clinicName: clinic.name,
-      patientName: patient.name,
-      availableSlots: slotStrings.slice(0, 5),
-      appointmentDetails: {
-        date: appointment.date,
-        time: appointment.start_time,
-        service: appointment.service,
-        status: 'rescheduled',
-      },
-    });
+    return await startRescheduleFlow(clinic, patient, entities);
   } catch (error) {
     console.error('Error handling reschedule:', error);
     return `Que pena, en este momento no puedo consultar los horarios disponibles. Por favor intentelo de nuevo en unos minutos o comuniquese con ${clinic.name}.`;

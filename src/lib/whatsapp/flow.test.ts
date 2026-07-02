@@ -135,6 +135,12 @@ describe('startRescheduleFlow', () => {
         old_google_event_id: 'old-evt-1',
       }));
   });
+
+  it('NO toca la cita original al iniciar el flujo', async () => {
+    vi.mocked(getUpcomingAppointment).mockResolvedValue({ id: 'a-old', service: 'Limpieza dental' } as never);
+    await startRescheduleFlow(clinic, patient, {});
+    expect(updateAppointmentStatus).not.toHaveBeenCalled();
+  });
 });
 
 describe('continueSession', () => {
@@ -334,6 +340,17 @@ describe('continueSession', () => {
       expect(callOrder).toEqual(['create', 'update-old']);
       expect(updateAppointmentStatus).toHaveBeenCalledWith('old-1', 'rescheduled');
       expect(deleteEvent).not.toHaveBeenCalled();
+    });
+
+    it('si crear la nueva falla, la original queda intacta', async () => {
+      const rescheduleSession = {
+        id: 'ses4', clinic_id: 'c1', patient_id: 'p1', state: 'awaiting_reschedule_slot',
+        context: { flow: 'reschedule', appointment_id: 'old-1', duration_minutes: 60, offered_slots: slots },
+      } as unknown as ConversationSession;
+      vi.mocked(createAppointment).mockRejectedValue(new Error('db down'));
+      await expect(continueSession({ session: rescheduleSession, message: '1', clinic, patient, services }))
+        .rejects.toThrow();
+      expect(updateAppointmentStatus).not.toHaveBeenCalled();
     });
   });
 
