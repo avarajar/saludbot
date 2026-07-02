@@ -342,6 +342,29 @@ describe('resolucion de clinica para numero compartido', () => {
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
+  it('ambigua con mas de 5 candidatas: guarda la sesion con todas y pide el nombre en vez de listar', async () => {
+    const many = Array.from({ length: 6 }, (_, i) => ({ id: `c${i}`, name: `Clinica ${i}` }));
+    vi.mocked(resolveClinic).mockResolvedValue({
+      status: 'ambiguous',
+      candidates: many,
+    } as never);
+
+    const res = await POST(twilioRequest());
+    const body = await res.text();
+
+    expect(res.status).toBe(200);
+    expect(saveRoutingSession).toHaveBeenCalledWith(
+      '+573009876543',
+      many.map((c) => c.id),
+    );
+    expect(body).not.toContain('1. Clinica');
+    expect(body).not.toContain('Clinica 0');
+    expect(body).toContain('nombre de la clinica');
+    expect(getPatientByPhone).not.toHaveBeenCalled();
+    expect(classifyIntent).not.toHaveBeenCalled();
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
   it('sin clinica resuelta: responde con TwiML vacio y no procesa nada', async () => {
     vi.mocked(resolveClinic).mockResolvedValue({ status: 'none' } as never);
 

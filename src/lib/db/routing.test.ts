@@ -106,6 +106,18 @@ describe('resolveClinic', () => {
     expect(many.some((c) => numberIds.has(c.id))).toBe(false);
     expect(r).toEqual({ status: 'ambiguous', candidates: byNumber });
   });
+
+  it('mas de 5 candidatas → ambiguous con todas, nunca "none" (el paciente siempre recibe respuesta)', async () => {
+    const many = Array.from({ length: 6 }, (_, i) => ({
+      id: `c${i}`, name: `Clinica ${i}`, slug: `clinica-${i}`, active: true,
+    } as Clinic));
+    vi.mocked(rq.getActiveClinicsByNumber).mockResolvedValue(many);
+    vi.mocked(rq.getRoutingSession).mockResolvedValue(null);
+    vi.mocked(rq.getClinicsForPatientPhone).mockResolvedValue([]);
+    vi.mocked(rq.getActiveClinicBySlug).mockResolvedValue(null);
+    const r = await resolveClinic('+573001', '+573009', 'Hola');
+    expect(r).toEqual({ status: 'ambiguous', candidates: many });
+  });
 });
 
 describe('popRoutingChoice', () => {

@@ -69,6 +69,16 @@ export async function POST(request: NextRequest) {
 
     if (resolution.status === 'ambiguous') {
       await saveRoutingSession(from, resolution.candidates.map((c) => c.id));
+
+      if (resolution.candidates.length > 5) {
+        // Demasiadas clinicas para listar con numeros: se le pide el nombre
+        // en vez de dejarlo sin respuesta. popRoutingChoice ya sabe resolver
+        // por nombre/slug contra la sesion de routing guardada arriba.
+        return twimlResponse(
+          'Hola, este numero atiende varias clinicas. Por favor escribanos el nombre de la clinica que busca.',
+        );
+      }
+
       const list = resolution.candidates.map((c, i) => `${i + 1}. ${c.name}`).join('\n');
       return twimlResponse(
         `Hola, ¿con cual clinica desea comunicarse?\n${list}\nResponda con el numero.`,

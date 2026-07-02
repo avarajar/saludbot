@@ -59,13 +59,18 @@ export async function resolveClinic(to: string, from: string, body: string): Pro
     if (bySlug && numberIds.has(bySlug.id)) return { status: 'resolved', clinic: bySlug };
   }
 
+  // El paciente siempre recibe respuesta: aunque haya mas de 5 candidatas
+  // (numero compartido por muchas clinicas) se devuelven todas como
+  // "ambiguous" en vez de "none". El webhook decide como preguntarle al
+  // paciente segun el tamano de la lista (numerada si es corta, o pidiendo
+  // el nombre de la clinica si son demasiadas para listar).
   const candidates =
-    byPatient.length >= 2 && byPatient.length <= 5
+    byPatient.length >= 2
       ? byPatient
-      : byNumber.length >= 2 && byNumber.length <= 5
+      : byNumber.length >= 2
         ? byNumber
         : [];
-  if (candidates.length >= 2 && candidates.length <= 5) {
+  if (candidates.length >= 2) {
     return { status: 'ambiguous', candidates };
   }
   return { status: 'none' };
