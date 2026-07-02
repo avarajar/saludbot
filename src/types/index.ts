@@ -169,6 +169,7 @@ export interface SessionContext {
   offered_slots?: AvailableSlot[];
   chosen_slot?: AvailableSlot;
   appointment_id?: string;
+  old_google_event_id?: string | null;
 }
 
 export interface ConversationSession {

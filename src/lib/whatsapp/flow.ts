@@ -7,10 +7,10 @@ import type {
 } from '@/types';
 import { setSession, clearSession } from '@/lib/db/sessions';
 import {
-  getAvailableSlots, createAppointment, updatePatient,
+  getAvailableSlots, createAppointment, updateAppointment, updatePatient,
   updateAppointmentStatus, getUpcomingAppointment,
 } from '@/lib/db/queries';
-import { createEvent } from '@/lib/calendar/google';
+import { createEvent, deleteEvent } from '@/lib/calendar/google';
 import { classifyIntent } from '@/lib/ai/classifier';
 
 const ESCAPE_PATTERNS = [
@@ -103,6 +103,7 @@ export async function startRescheduleFlow(
     flow: 'reschedule',
     appointment_id: appointment.id,
     service_name: appointment.service,
+    old_google_event_id: appointment.google_event_id,
   };
   return offerSlots(clinic, patient, ctx, entities.date || undefined, 'awaiting_reschedule_slot');
 }
@@ -147,11 +148,14 @@ async function finalizeAppointment(
 ): Promise<string> {
   const duration = ctx.duration_minutes ?? 30;
   try {
-    const googleEventId = await createCalendarEventSafe(clinic, patient, ctx, slot, duration);
+    // La cita se crea PRIMERO (sin evento de calendario) para que, si el
+    // insert falla por horario ya ocupado (appointments_slot_unique), no
+    // quede un evento de calendario huerfano. El evento se crea despues,
+    // best-effort, y se enlaza a la cita ya persistida.
     const appointment = await createAppointment({
       clinic_id: clinic.id,
       patient_id: patient.id,
-      google_event_id: googleEventId,
+      google_event_id: null,
       date: slot.date,
       start_time: slot.time,
       end_time: endTimeFor(slot, duration),
@@ -159,10 +163,28 @@ async function finalizeAppointment(
       status: 'scheduled',
     });
 
+    const googleEventId = await createCalendarEventSafe(clinic, patient, ctx, slot, duration);
+    if (googleEventId) {
+      try {
+        await updateAppointment(appointment.id, { google_event_id: googleEventId });
+      } catch (error) {
+        console.error('Failed to link calendar event to appointment (non-blocking):', error);
+      }
+    }
+
     // Reagendamiento: marcar la cita anterior SOLO despues de crear la nueva,
     // para que un fallo al crear no deje al paciente sin ninguna cita.
     if (ctx.flow === 'reschedule' && ctx.appointment_id) {
       await updateAppointmentStatus(ctx.appointment_id, 'rescheduled');
+
+      // Limpiar el evento de calendario de la cita anterior, best-effort.
+      if (ctx.old_google_event_id && clinic.google_calendar_id) {
+        try {
+          await deleteEvent(clinic.google_calendar_id, ctx.old_google_event_id);
+        } catch (error) {
+          console.error('Failed to delete old calendar event (non-blocking):', error);
+        }
+      }
     }
 
     await clearSession(clinic.id, patient.id);

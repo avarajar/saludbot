@@ -5,11 +5,11 @@ vi.mock('@/lib/db/sessions', () => ({
   getActiveSession: vi.fn(), setSession: vi.fn(), clearSession: vi.fn(),
 }));
 vi.mock('@/lib/db/queries', () => ({
-  getAvailableSlots: vi.fn(), createAppointment: vi.fn(),
+  getAvailableSlots: vi.fn(), createAppointment: vi.fn(), updateAppointment: vi.fn(),
   updatePatient: vi.fn(), updateAppointmentStatus: vi.fn(),
   getUpcomingAppointment: vi.fn(),
 }));
-vi.mock('@/lib/calendar/google', () => ({ createEvent: vi.fn() }));
+vi.mock('@/lib/calendar/google', () => ({ createEvent: vi.fn(), deleteEvent: vi.fn() }));
 vi.mock('@/lib/ai/classifier', () => ({ classifyIntent: vi.fn() }));
 
 import {
@@ -18,10 +18,10 @@ import {
 } from './flow';
 import { setSession, clearSession } from '@/lib/db/sessions';
 import {
-  getAvailableSlots, createAppointment, updatePatient,
+  getAvailableSlots, createAppointment, updateAppointment, updatePatient,
   updateAppointmentStatus, getUpcomingAppointment,
 } from '@/lib/db/queries';
-import { createEvent } from '@/lib/calendar/google';
+import { createEvent, deleteEvent } from '@/lib/calendar/google';
 import { classifyIntent } from '@/lib/ai/classifier';
 
 const clinic = {
@@ -125,12 +125,15 @@ describe('startRescheduleFlow', () => {
 
   it('con cita proxima, ofrece slots para reagendar', async () => {
     vi.mocked(getUpcomingAppointment).mockResolvedValue({
-      id: 'a0', service: 'Limpieza dental',
+      id: 'a0', service: 'Limpieza dental', google_event_id: 'old-evt-1',
     } as never);
     const reply = await startRescheduleFlow(clinic, patient, {});
     expect(reply).toMatch(/1\./);
     expect(setSession).toHaveBeenCalledWith('c1', 'p1', 'awaiting_reschedule_slot',
-      expect.objectContaining({ flow: 'reschedule', appointment_id: 'a0', service_name: 'Limpieza dental' }));
+      expect.objectContaining({
+        flow: 'reschedule', appointment_id: 'a0', service_name: 'Limpieza dental',
+        old_google_event_id: 'old-evt-1',
+      }));
   });
 });
 
@@ -144,20 +147,44 @@ describe('continueSession', () => {
     vi.clearAllMocks();
     vi.mocked(getAvailableSlots).mockResolvedValue(slots);
     vi.mocked(createEvent).mockResolvedValue('gcal-evt-1');
+    vi.mocked(deleteEvent).mockResolvedValue(undefined);
+    vi.mocked(updateAppointment).mockImplementation(async (id, data) => ({ id, ...data } as never));
   });
 
-  it('eleccion numerica de slot crea la cita', async () => {
+  it('eleccion numerica de slot crea la cita: primero el registro, con evento nulo', async () => {
     vi.mocked(createAppointment).mockResolvedValue({ id: 'a1', date: '2026-07-06', start_time: '09:00', service: 'Limpieza dental' } as never);
     const result = await continueSession({ session: slotSession, message: '1', clinic, patient, services });
     expect(result.handled).toBe(true);
     expect(createAppointment).toHaveBeenCalledWith(expect.objectContaining({
       clinic_id: 'c1', patient_id: 'p1', date: '2026-07-06',
       start_time: '09:00', end_time: '10:00', service: 'Limpieza dental', status: 'scheduled',
-      google_event_id: 'gcal-evt-1',
+      google_event_id: null,
     }));
     expect(clearSession).toHaveBeenCalledWith('c1', 'p1');
     expect(result.reply).toContain('Maria');
     expect(result.reply!.length).toBeLessThanOrEqual(300);
+  });
+
+  it('tras crear la cita, actualiza el registro con el id del evento de calendario', async () => {
+    vi.mocked(createAppointment).mockResolvedValue({ id: 'a1', date: '2026-07-06', start_time: '09:00', service: 'Limpieza dental' } as never);
+    const result = await continueSession({ session: slotSession, message: '1', clinic, patient, services });
+    expect(result.handled).toBe(true);
+    expect(updateAppointment).toHaveBeenCalledWith('a1', { google_event_id: 'gcal-evt-1' });
+  });
+
+  it('crea la cita en base de datos antes de crear el evento de calendario', async () => {
+    const callOrder: string[] = [];
+    vi.mocked(createAppointment).mockImplementation(async () => {
+      callOrder.push('create-appointment');
+      return { id: 'a1', date: '2026-07-06', start_time: '09:00', service: 'Limpieza dental' } as never;
+    });
+    vi.mocked(createEvent).mockImplementation(async () => {
+      callOrder.push('create-event');
+      return 'gcal-evt-1';
+    });
+    const result = await continueSession({ session: slotSession, message: '1', clinic, patient, services });
+    expect(result.handled).toBe(true);
+    expect(callOrder).toEqual(['create-appointment', 'create-event']);
   });
 
   it('si la clinica no tiene calendario configurado, crea la cita sin evento', async () => {
@@ -167,6 +194,7 @@ describe('continueSession', () => {
     expect(result.handled).toBe(true);
     expect(createEvent).not.toHaveBeenCalled();
     expect(createAppointment).toHaveBeenCalledWith(expect.objectContaining({ google_event_id: null }));
+    expect(updateAppointment).not.toHaveBeenCalled();
   });
 
   it('si el paciente no tiene nombre, lo pide antes de crear', async () => {
@@ -202,13 +230,14 @@ describe('continueSession', () => {
     expect(createAppointment).not.toHaveBeenCalled();
   });
 
-  it('si el slot ya fue tomado (unique violation), reofrece horarios', async () => {
+  it('si el slot ya fue tomado (unique violation), reofrece horarios y no crea evento huerfano', async () => {
     vi.mocked(createAppointment).mockRejectedValue(new Error('createAppointment failed: duplicate key value violates unique constraint "appointments_slot_unique"'));
     vi.mocked(getAvailableSlots).mockResolvedValue([{ date: '2026-07-06', time: '11:00' }]);
     const result = await continueSession({ session: slotSession, message: '1', clinic, patient, services });
     expect(result.handled).toBe(true);
     expect(result.reply).toContain('ocupado');
     expect(setSession).toHaveBeenCalledWith('c1', 'p1', 'awaiting_slot', expect.anything());
+    expect(createEvent).not.toHaveBeenCalled();
   });
 
   it('un error de base de datos no relacionado con el slot se propaga', async () => {
@@ -304,6 +333,33 @@ describe('continueSession', () => {
       expect(result.handled).toBe(true);
       expect(callOrder).toEqual(['create', 'update-old']);
       expect(updateAppointmentStatus).toHaveBeenCalledWith('old-1', 'rescheduled');
+      expect(deleteEvent).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('reagendamiento limpia el evento de calendario de la cita anterior', () => {
+    const rescheduleSessionWithOldEvent = {
+      id: 'ses5', clinic_id: 'c1', patient_id: 'p1', state: 'awaiting_reschedule_slot',
+      context: {
+        flow: 'reschedule', appointment_id: 'old-1', old_google_event_id: 'old-evt-1',
+        service_name: 'Limpieza dental', duration_minutes: 60, offered_slots: slots,
+      },
+    } as unknown as ConversationSession;
+
+    it('elimina el evento de calendario de la cita anterior tras reagendar', async () => {
+      vi.mocked(createAppointment).mockResolvedValue({ id: 'a-new', date: '2026-07-06', start_time: '09:00', service: 'Limpieza dental' } as never);
+      const result = await continueSession({ session: rescheduleSessionWithOldEvent, message: '1', clinic, patient, services });
+      expect(result.handled).toBe(true);
+      expect(deleteEvent).toHaveBeenCalledWith('cal-1', 'old-evt-1');
+    });
+
+    it('si la eliminacion del evento anterior falla, no bloquea la respuesta de exito', async () => {
+      vi.mocked(createAppointment).mockResolvedValue({ id: 'a-new', date: '2026-07-06', start_time: '09:00', service: 'Limpieza dental' } as never);
+      vi.mocked(deleteEvent).mockRejectedValue(new Error('calendar API down'));
+      const result = await continueSession({ session: rescheduleSessionWithOldEvent, message: '1', clinic, patient, services });
+      expect(result.handled).toBe(true);
+      expect(result.reply).toContain('reagendada');
+      expect(clearSession).toHaveBeenCalledWith('c1', 'p1');
     });
   });
 });
