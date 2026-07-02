@@ -83,7 +83,7 @@ describe('processFollowups', () => {
     vi.mocked(fq.getCompletedAppointmentsForDate).mockResolvedValue([
       { id: 'a1', clinic_id: 'c1', patient_id: 'p1', service: 'Limpieza dental', date: '2026-06-30' },
     ] as never);
-    vi.mocked(fq.insertFollowupLog).mockResolvedValue({ duplicate: false });
+    vi.mocked(fq.insertFollowupLog).mockResolvedValue({ duplicate: false, id: 'log-a1' });
     vi.mocked(sendBusinessMessage).mockRejectedValueOnce(new Error('Twilio error'));
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
@@ -91,7 +91,7 @@ describe('processFollowups', () => {
 
     expect(result.postVisitSent).toBe(0);
     expect(result.errors).toBe(1);
-    expect(fq.markFollowupFailed).toHaveBeenCalledWith('a1', 'p1', 'post_visit');
+    expect(fq.markFollowupFailed).toHaveBeenCalledWith('log-a1');
     expect(fq.updatePatientLastVisit).not.toHaveBeenCalled();
 
     consoleErrorSpy.mockRestore();
@@ -102,7 +102,7 @@ describe('processFollowups', () => {
       { id: 's1', clinic_id: 'c1', name: 'Limpieza dental', follow_up_days: 180 },
     ] as never);
     vi.mocked(fq.getPatientsDueForRecall).mockResolvedValue([patient] as never);
-    vi.mocked(fq.insertFollowupLog).mockResolvedValue({ duplicate: false });
+    vi.mocked(fq.insertFollowupLog).mockResolvedValue({ duplicate: false, id: 'log-recall-s1' });
     vi.mocked(sendBusinessMessage).mockRejectedValueOnce(new Error('Twilio error'));
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
@@ -110,9 +110,60 @@ describe('processFollowups', () => {
 
     expect(result.recallSent).toBe(0);
     expect(result.errors).toBe(1);
-    expect(fq.markFollowupFailed).toHaveBeenCalledWith(null, 'p1', 'recall');
+    expect(fq.markFollowupFailed).toHaveBeenCalledWith('log-recall-s1');
 
     consoleErrorSpy.mockRestore();
+  });
+
+  it('un fallo de recall del servicio A solo marca la fila de log de A, no la de otro servicio B', async () => {
+    // Dos servicios de recall, cada uno con su propio paciente y su propia fila de log.
+    // El fallo de envio para el servicio A no debe tocar la fila de log del servicio B
+    // (bug anterior: markFollowupFailed sin logId actualizaba TODAS las filas de recall
+    // del paciente, incluyendo servicios que ya habian sido enviados con exito).
+    const patientB = { id: 'p2', clinic_id: 'c1', name: 'Carlos', phone: '+5730099' };
+    vi.mocked(fq.getRecallServices).mockResolvedValue([
+      { id: 's1', clinic_id: 'c1', name: 'Limpieza dental', follow_up_days: 180 },
+      { id: 's2', clinic_id: 'c1', name: 'Blanqueamiento', follow_up_days: 90 },
+    ] as never);
+    vi.mocked(fq.getPatientsDueForRecall).mockImplementation((async (service: { id: string }) => {
+      return service.id === 's1' ? [patient] : [patientB];
+    }) as never);
+    vi.mocked(fq.insertFollowupLog).mockImplementation((async (log: { service_id: string }) => {
+      return log.service_id === 's1'
+        ? { duplicate: false, id: 'log-service-a' }
+        : { duplicate: false, id: 'log-service-b' };
+    }) as never);
+    // El envio del servicio A falla; el del servicio B tiene exito.
+    vi.mocked(sendBusinessMessage).mockRejectedValueOnce(new Error('Twilio error'));
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const result = await processFollowups();
+
+    expect(result.recallSent).toBe(1);
+    expect(result.errors).toBe(1);
+    expect(fq.markFollowupFailed).toHaveBeenCalledTimes(1);
+    expect(fq.markFollowupFailed).toHaveBeenCalledWith('log-service-a');
+    expect(fq.markFollowupFailed).not.toHaveBeenCalledWith('log-service-b');
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('si el insert de recall retorna duplicate, no envia mensaje ni incrementa recallSent', async () => {
+    vi.mocked(fq.getRecallServices).mockResolvedValue([
+      { id: 's1', clinic_id: 'c1', name: 'Limpieza dental', follow_up_days: 180 },
+    ] as never);
+    vi.mocked(fq.getPatientsDueForRecall).mockResolvedValue([patient] as never);
+    // Simula la carrera cerrada por el indice unico parcial: la corrida
+    // concurrente ya inserto la fila para el mismo dia-Bogota, esta pierde
+    // con 23505 -> insertFollowupLog mapea a duplicate.
+    vi.mocked(fq.insertFollowupLog).mockResolvedValue({ duplicate: true });
+
+    const result = await processFollowups();
+
+    expect(result.recallSent).toBe(0);
+    expect(result.errors).toBe(0);
+    expect(sendBusinessMessage).not.toHaveBeenCalled();
+    expect(fq.markFollowupFailed).not.toHaveBeenCalled();
   });
 
   it('omite servicios de recall sin pacientes vencidos', async () => {

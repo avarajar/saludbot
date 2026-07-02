@@ -1,5 +1,9 @@
+import { TZDate } from '@date-fns/tz';
+import { format, subDays } from 'date-fns';
 import { supabaseAdmin as getAdmin } from '@/lib/db/supabase';
 import type { Appointment, Clinic, ClinicService, Patient } from '@/types';
+
+const TIMEZONE = 'America/Bogota';
 
 export async function getCompletedAppointmentsForDate(date: string): Promise<Appointment[]> {
   const { data, error } = await getAdmin()
@@ -23,8 +27,8 @@ export async function getRecallServices(): Promise<ClinicService[]> {
  */
 export async function getPatientsDueForRecall(service: ClinicService): Promise<Patient[]> {
   const admin = getAdmin();
-  const cutoff = new Date(Date.now() - (service.follow_up_days ?? 0) * 24 * 60 * 60 * 1000);
-  const cutoffDate = cutoff.toISOString().split('T')[0];
+  const cutoff = subDays(TZDate.tz(TIMEZONE), service.follow_up_days ?? 0);
+  const cutoffDate = format(cutoff, 'yyyy-MM-dd');
 
   const { data: completed, error } = await admin
     .from('appointments')
@@ -65,23 +69,19 @@ export async function getPatientsDueForRecall(service: ClinicService): Promise<P
 export async function insertFollowupLog(log: {
   clinic_id: string; patient_id: string; appointment_id?: string | null;
   service_id?: string | null; type: 'post_visit' | 'recall';
-}): Promise<{ duplicate: boolean }> {
-  const { error } = await getAdmin().from('followup_logs').insert(log);
+}): Promise<{ duplicate: boolean; id?: string }> {
+  const { data, error } = await getAdmin().from('followup_logs').insert(log).select('id').single();
   if (error) {
     if (error.code === '23505') return { duplicate: true };
     throw new Error(`insertFollowupLog failed: ${error.message}`);
   }
-  return { duplicate: false };
+  return { duplicate: false, id: data.id };
 }
 
-export async function markFollowupFailed(
-  appointmentId: string | null, patientId: string, type: 'post_visit' | 'recall',
-): Promise<void> {
-  let query = getAdmin().from('followup_logs')
+export async function markFollowupFailed(logId: string): Promise<void> {
+  const { error } = await getAdmin().from('followup_logs')
     .update({ status: 'failed' })
-    .eq('patient_id', patientId).eq('type', type);
-  if (appointmentId) query = query.eq('appointment_id', appointmentId);
-  const { error } = await query;
+    .eq('id', logId);
   if (error) console.error(`markFollowupFailed: ${error.message}`);
 }
 

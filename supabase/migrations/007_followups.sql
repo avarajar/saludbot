@@ -27,3 +27,16 @@ create policy "Members read own followup_logs" on followup_logs
 -- Un solo post_visit por cita (claim por índice único).
 create unique index followup_post_visit_unique
   on followup_logs (appointment_id) where type = 'post_visit';
+
+-- Dedup atómico de recall por paciente/servicio/día (zona horaria Bogotá).
+-- El check-then-act de getPatientsDueForRecall (SELECT ventana de envíos
+-- recientes seguido de INSERT) no es atómico: dos corridas concurrentes del
+-- cron pueden pasar el SELECT antes de que cualquiera inserte, y ambas
+-- terminan enviando el recall al mismo paciente el mismo día. Este índice
+-- único parcial cierra la ventana de carrera: ambas corridas calculan la
+-- misma clave (patient_id, service_id, día-Bogotá) y solo el primer INSERT
+-- tiene éxito; el segundo recibe 23505 (unique_violation), que
+-- insertFollowupLog ya traduce a { duplicate: true } para omitir el envío.
+create unique index followup_recall_daily_unique
+  on followup_logs (patient_id, service_id, ((sent_at at time zone 'America/Bogota')::date))
+  where type = 'recall';

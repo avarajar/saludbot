@@ -32,7 +32,7 @@ export async function processFollowups(): Promise<{
       if (!clinic || !patient) continue;
 
       // Claim por índice único: un solo post_visit por cita.
-      const { duplicate } = await insertFollowupLog({
+      const { duplicate, id: logId } = await insertFollowupLog({
         clinic_id: clinic.id, patient_id: patient.id,
         appointment_id: appointment.id, type: 'post_visit',
       });
@@ -50,7 +50,7 @@ export async function processFollowups(): Promise<{
         summary.postVisitSent++;
       } catch (err) {
         console.error(`Post-visit followup failed for appointment ${appointment.id}:`, err);
-        await markFollowupFailed(appointment.id, patient.id, 'post_visit');
+        if (logId) await markFollowupFailed(logId);
         summary.errors++;
       }
     }
@@ -65,7 +65,7 @@ export async function processFollowups(): Promise<{
     if (!clinic) continue;
 
     for (const patient of due) {
-      const { duplicate } = await insertFollowupLog({
+      const { duplicate, id: logId } = await insertFollowupLog({
         clinic_id: clinic.id, patient_id: patient.id,
         service_id: service.id, type: 'recall',
       });
@@ -82,7 +82,7 @@ export async function processFollowups(): Promise<{
         summary.recallSent++;
       } catch (err) {
         console.error(`Recall followup failed for patient ${patient.id}:`, err);
-        await markFollowupFailed(null, patient.id, 'recall');
+        if (logId) await markFollowupFailed(logId);
         summary.errors++;
       }
     }
