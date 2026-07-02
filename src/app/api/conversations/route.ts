@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin as getSupabase } from '@/lib/db/supabase';
+import { requireAuthenticatedUser, requireClinicMembership } from '@/lib/auth/authorize';
 
 // ── GET /api/conversations ───────────────────────────────────────────────────
 
@@ -25,6 +26,11 @@ export async function GET(request: NextRequest) {
       { status: 400 },
     );
   }
+
+  const auth = await requireAuthenticatedUser();
+  if (!auth.user) return auth.error;
+  const forbidden = await requireClinicMembership(auth.user.id, clinicId);
+  if (forbidden) return forbidden;
 
   const supabase = getSupabase();
 

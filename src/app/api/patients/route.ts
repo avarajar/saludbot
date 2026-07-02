@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { supabaseAdmin as getSupabase } from '@/lib/db/supabase';
+import { requireAuthenticatedUser, requireClinicMembership } from '@/lib/auth/authorize';
 
 // ── GET /api/patients ──────────────────────────────────────────────────────
 
@@ -23,6 +24,11 @@ export async function GET(request: NextRequest) {
       { status: 400 },
     );
   }
+
+  const auth = await requireAuthenticatedUser();
+  if (!auth.user) return auth.error;
+  const forbidden = await requireClinicMembership(auth.user.id, clinicId);
+  if (forbidden) return forbidden;
 
   const supabase = getSupabase();
 
@@ -77,6 +83,11 @@ export async function POST(request: NextRequest) {
   }
 
   const { clinic_id, name, phone, email, document_id, notes } = parsed.data;
+
+  const auth = await requireAuthenticatedUser();
+  if (!auth.user) return auth.error;
+  const forbidden = await requireClinicMembership(auth.user.id, clinic_id);
+  if (forbidden) return forbidden;
 
   const supabase = getSupabase();
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { supabaseAdmin as getSupabase } from '@/lib/db/supabase';
+import { requireAuthenticatedUser, requireClinicMembership } from '@/lib/auth/authorize';
 import type { ClinicSpecialty, PackageType } from '@/types';
 
 // ── GET /api/clinics ───────────────────────────────────────────────────────
@@ -11,6 +12,12 @@ import type { ClinicSpecialty, PackageType } from '@/types';
  * Query params (provide one):
  *  - id   (UUID)
  *  - slug (URL-friendly identifier)
+ *
+ * There is no public/unauthenticated variant of this lookup: the dashboard
+ * loads the current user's clinic directly via the browser Supabase client
+ * (RLS-scoped), and nothing today calls this route for a public landing
+ * page. So both the id and slug paths require the caller to be a member of
+ * the resolved clinic, returning the full row only in that case.
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
@@ -23,6 +30,9 @@ export async function GET(request: NextRequest) {
       { status: 400 },
     );
   }
+
+  const auth = await requireAuthenticatedUser();
+  if (!auth.user) return auth.error;
 
   const supabase = getSupabase();
 
@@ -42,6 +52,9 @@ export async function GET(request: NextRequest) {
       { status: 404 },
     );
   }
+
+  const forbidden = await requireClinicMembership(auth.user.id, clinic.id);
+  if (forbidden) return forbidden;
 
   return NextResponse.json({ clinic });
 }
@@ -88,9 +101,16 @@ const createClinicSchema = z.object({
 });
 
 /**
- * Registers a new clinic.
+ * Registers a new clinic. Only requires an authenticated caller — there is
+ * no existing clinic to check membership against yet (that's what
+ * /api/onboarding does for the primary signup flow; this route additionally
+ * lets an already-authenticated owner register a further clinic from the
+ * dashboard).
  */
 export async function POST(request: NextRequest) {
+  const auth = await requireAuthenticatedUser();
+  if (!auth.user) return auth.error;
+
   const body = await request.json();
 
   const parsed = createClinicSchema.safeParse(body);
@@ -166,6 +186,11 @@ export async function PATCH(request: NextRequest) {
   }
 
   const { id, ...updates } = parsed.data;
+
+  const auth = await requireAuthenticatedUser();
+  if (!auth.user) return auth.error;
+  const forbidden = await requireClinicMembership(auth.user.id, id);
+  if (forbidden) return forbidden;
 
   const supabase = getSupabase();
 

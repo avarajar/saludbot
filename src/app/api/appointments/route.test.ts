@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
+const mockGetUser = vi.fn();
+vi.mock('@/lib/auth/supabase-server', () => ({
+  createSupabaseServerClient: vi.fn(async () => ({ auth: { getUser: mockGetUser } })),
+}));
+
 // Supabase chainable query builder mock
 // Every method returns the same chain object so optional filters work
 function createChain(resolvedData: { data: unknown; error: unknown } = { data: null, error: null }) {
@@ -46,6 +51,36 @@ vi.stubEnv('TWILIO_WHATSAPP_NUMBER', '+14155238886');
 
 import { GET, POST, PATCH } from './route';
 
+const MEMBER_CLINIC_ID = '550e8400-e29b-41d4-a716-446655440000';
+
+function mockAuthenticated(userId = 'user-1') {
+  mockGetUser.mockResolvedValue({ data: { user: { id: userId } } });
+}
+function mockUnauthenticated() {
+  mockGetUser.mockResolvedValue({ data: { user: null } });
+}
+
+/**
+ * Routes `.from(table)` calls to stable per-table chains so assertions can
+ * inspect a specific table's chain (e.g. `.eq` calls). `clinic_users`
+ * defaults to an authorized membership unless overridden.
+ */
+function mockTables(overrides: Record<string, { data: unknown; error: unknown }> = {}) {
+  const tables: Record<string, { data: unknown; error: unknown }> = {
+    clinic_users: { data: { clinic_id: MEMBER_CLINIC_ID }, error: null },
+    ...overrides,
+  };
+  const chains: Record<string, ReturnType<typeof createChain>> = {};
+  for (const [table, resolved] of Object.entries(tables)) {
+    chains[table] = createChain(resolved);
+  }
+  mockSupabaseFrom.mockImplementation((table: string) => {
+    if (!chains[table]) chains[table] = createChain();
+    return chains[table];
+  });
+  return chains;
+}
+
 function makeGetRequest(params: Record<string, string>) {
   const url = new URL('http://localhost:3000/api/appointments');
   for (const [key, value] of Object.entries(params)) {
@@ -65,6 +100,7 @@ function makePostRequest(body: unknown) {
 describe('GET /api/appointments', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAuthenticated();
   });
 
   it('returns 400 when clinic_id is missing', async () => {
@@ -76,11 +112,28 @@ describe('GET /api/appointments', () => {
     expect(data.error).toBe('clinic_id is required');
   });
 
+  it('returns 401 when unauthenticated', async () => {
+    mockUnauthenticated();
+    mockTables();
+    const request = makeGetRequest({ clinic_id: MEMBER_CLINIC_ID });
+    const response = await GET(request);
+
+    expect(response.status).toBe(401);
+  });
+
+  it('returns 403 when the user is not a member of the clinic', async () => {
+    mockTables({ clinic_users: { data: null, error: null } });
+    const request = makeGetRequest({ clinic_id: MEMBER_CLINIC_ID });
+    const response = await GET(request);
+
+    expect(response.status).toBe(403);
+  });
+
   it('returns appointments for a given clinic_id', async () => {
     const appointmentsList = [
       {
         id: 'appt-001',
-        clinic_id: 'clinic-001',
+        clinic_id: MEMBER_CLINIC_ID,
         date: '2026-03-10',
         start_time: '10:00',
         service: 'Limpieza',
@@ -89,10 +142,9 @@ describe('GET /api/appointments', () => {
       },
     ];
 
-    const chain = createChain({ data: appointmentsList, error: null });
-    mockSupabaseFrom.mockReturnValue(chain);
+    mockTables({ appointments: { data: appointmentsList, error: null } });
 
-    const request = makeGetRequest({ clinic_id: 'clinic-001' });
+    const request = makeGetRequest({ clinic_id: MEMBER_CLINIC_ID });
     const response = await GET(request);
     const data = await response.json();
 
@@ -101,30 +153,27 @@ describe('GET /api/appointments', () => {
   });
 
   it('filters by date when provided', async () => {
-    const chain = createChain({ data: [], error: null });
-    mockSupabaseFrom.mockReturnValue(chain);
+    const chains = mockTables({ appointments: { data: [], error: null } });
 
-    const request = makeGetRequest({ clinic_id: 'clinic-001', date: '2026-03-10' });
+    const request = makeGetRequest({ clinic_id: MEMBER_CLINIC_ID, date: '2026-03-10' });
     await GET(request);
 
-    expect(chain.eq).toHaveBeenCalledWith('date', '2026-03-10');
+    expect(chains.appointments.eq).toHaveBeenCalledWith('date', '2026-03-10');
   });
 
   it('filters by status when provided', async () => {
-    const chain = createChain({ data: [], error: null });
-    mockSupabaseFrom.mockReturnValue(chain);
+    const chains = mockTables({ appointments: { data: [], error: null } });
 
-    const request = makeGetRequest({ clinic_id: 'clinic-001', status: 'confirmed' });
+    const request = makeGetRequest({ clinic_id: MEMBER_CLINIC_ID, status: 'confirmed' });
     await GET(request);
 
-    expect(chain.eq).toHaveBeenCalledWith('status', 'confirmed');
+    expect(chains.appointments.eq).toHaveBeenCalledWith('status', 'confirmed');
   });
 
   it('returns 500 when Supabase query fails', async () => {
-    const chain = createChain({ data: null, error: { message: 'Connection refused' } });
-    mockSupabaseFrom.mockReturnValue(chain);
+    mockTables({ appointments: { data: null, error: { message: 'Connection refused' } } });
 
-    const request = makeGetRequest({ clinic_id: 'clinic-001' });
+    const request = makeGetRequest({ clinic_id: MEMBER_CLINIC_ID });
     const response = await GET(request);
     const data = await response.json();
 
@@ -136,10 +185,11 @@ describe('GET /api/appointments', () => {
 describe('POST /api/appointments', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAuthenticated();
   });
 
   const validBody = {
-    clinic_id: '550e8400-e29b-41d4-a716-446655440000',
+    clinic_id: MEMBER_CLINIC_ID,
     patient_id: '550e8400-e29b-41d4-a716-446655440001',
     date: '2026-03-10',
     start_time: '10:00',
@@ -154,6 +204,23 @@ describe('POST /api/appointments', () => {
 
     expect(response.status).toBe(400);
     expect(data.error).toBe('Validation failed');
+  });
+
+  it('returns 401 when unauthenticated', async () => {
+    mockUnauthenticated();
+    mockTables();
+    const request = makePostRequest(validBody);
+    const response = await POST(request);
+
+    expect(response.status).toBe(401);
+  });
+
+  it('returns 403 when the user is not a member of the clinic', async () => {
+    mockTables({ clinic_users: { data: null, error: null } });
+    const request = makePostRequest(validBody);
+    const response = await POST(request);
+
+    expect(response.status).toBe(403);
   });
 
   it('returns 400 when date format is invalid', async () => {
@@ -187,14 +254,12 @@ describe('POST /api/appointments', () => {
   });
 
   it('returns 404 when clinic is not found', async () => {
-    mockSupabaseFrom.mockImplementation((table: string) => {
-      if (table === 'clinics') {
-        return createChain({ data: null, error: { message: 'Not found' } });
-      }
-      return createChain({
+    mockTables({
+      clinics: { data: null, error: { message: 'Not found' } },
+      patients: {
         data: { id: validBody.patient_id, name: 'Maria', phone: '+573009876543', email: null },
         error: null,
-      });
+      },
     });
 
     const request = makePostRequest(validBody);
@@ -206,14 +271,12 @@ describe('POST /api/appointments', () => {
   });
 
   it('returns 404 when patient is not found', async () => {
-    mockSupabaseFrom.mockImplementation((table: string) => {
-      if (table === 'clinics') {
-        return createChain({
-          data: { id: validBody.clinic_id, name: 'Clinica Dental', google_calendar_id: 'cal-123' },
-          error: null,
-        });
-      }
-      return createChain({ data: null, error: { message: 'Not found' } });
+    mockTables({
+      clinics: {
+        data: { id: validBody.clinic_id, name: 'Clinica Dental', google_calendar_id: 'cal-123' },
+        error: null,
+      },
+      patients: { data: null, error: { message: 'Not found' } },
     });
 
     const request = makePostRequest(validBody);
@@ -245,15 +308,10 @@ describe('POST /api/appointments', () => {
       status: 'scheduled',
     };
 
-    mockSupabaseFrom.mockImplementation((table: string) => {
-      if (table === 'clinics') {
-        return createChain({ data: clinicData, error: null });
-      }
-      if (table === 'patients') {
-        return createChain({ data: patientData, error: null });
-      }
-      // appointments
-      return createChain({ data: appointmentData, error: null });
+    mockTables({
+      clinics: { data: clinicData, error: null },
+      patients: { data: patientData, error: null },
+      appointments: { data: appointmentData, error: null },
     });
 
     const request = makePostRequest(validBody);
@@ -278,18 +336,10 @@ describe('POST /api/appointments', () => {
       email: null,
     };
 
-    mockSupabaseFrom.mockImplementation((table: string) => {
-      if (table === 'clinics') {
-        return createChain({ data: clinicData, error: null });
-      }
-      if (table === 'patients') {
-        return createChain({ data: patientData, error: null });
-      }
-      // appointments - insert fails
-      return createChain({
-        data: null,
-        error: { message: 'Unique constraint violation' },
-      });
+    mockTables({
+      clinics: { data: clinicData, error: null },
+      patients: { data: patientData, error: null },
+      appointments: { data: null, error: { message: 'Unique constraint violation' } },
     });
 
     const request = makePostRequest(validBody);
@@ -304,18 +354,54 @@ describe('POST /api/appointments', () => {
 describe('PATCH /api/appointments', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockAuthenticated();
   });
 
-  it('actualiza el estado de la cita', async () => {
-    const chain = createChain({
-      data: { id: '550e8400-e29b-41d4-a716-446655440099', status: 'completed' },
-      error: null,
+  const APPT_ID = '550e8400-e29b-41d4-a716-446655440099';
+
+  /**
+   * PATCH resolves clinic_id from the existing row before checking
+   * membership, so `appointments` is queried twice: once to fetch
+   * `clinic_id`, once to apply the update.
+   */
+  function mockPatchAppointments(options: {
+    existingClinicId?: string | null;
+    membership?: { clinic_id: string } | null;
+    updateResult?: { data: unknown; error: unknown };
+  }) {
+    const {
+      existingClinicId = MEMBER_CLINIC_ID,
+      membership = { clinic_id: MEMBER_CLINIC_ID },
+      updateResult = { data: { id: APPT_ID, status: 'completed' }, error: null },
+    } = options;
+
+    const clinicUsersChain = createChain({ data: membership, error: null });
+    const fetchChain = createChain(
+      existingClinicId
+        ? { data: { clinic_id: existingClinicId }, error: null }
+        : { data: null, error: { message: 'not found' } },
+    );
+    const updateChain = createChain(updateResult);
+
+    let appointmentsCallCount = 0;
+    mockSupabaseFrom.mockImplementation((table: string) => {
+      if (table === 'clinic_users') return clinicUsersChain;
+      if (table === 'appointments') {
+        appointmentsCallCount++;
+        return appointmentsCallCount === 1 ? fetchChain : updateChain;
+      }
+      return createChain();
     });
-    mockSupabaseFrom.mockReturnValue(chain);
+
+    return { clinicUsersChain, fetchChain, updateChain };
+  }
+
+  it('actualiza el estado de la cita', async () => {
+    mockPatchAppointments({});
 
     const req = new NextRequest('https://example.com/api/appointments', {
       method: 'PATCH',
-      body: JSON.stringify({ id: '550e8400-e29b-41d4-a716-446655440099', status: 'completed' }),
+      body: JSON.stringify({ id: APPT_ID, status: 'completed' }),
       headers: { 'content-type': 'application/json' },
     });
     const res = await PATCH(req);
@@ -327,10 +413,47 @@ describe('PATCH /api/appointments', () => {
   it('rechaza estados invalidos', async () => {
     const req = new NextRequest('https://example.com/api/appointments', {
       method: 'PATCH',
-      body: JSON.stringify({ id: '550e8400-e29b-41d4-a716-446655440099', status: 'volando' }),
+      body: JSON.stringify({ id: APPT_ID, status: 'volando' }),
       headers: { 'content-type': 'application/json' },
     });
     const res = await PATCH(req);
     expect(res.status).toBe(400);
+  });
+
+  it('devuelve 401 sin autenticacion', async () => {
+    mockUnauthenticated();
+    mockPatchAppointments({});
+
+    const req = new NextRequest('https://example.com/api/appointments', {
+      method: 'PATCH',
+      body: JSON.stringify({ id: APPT_ID, status: 'completed' }),
+      headers: { 'content-type': 'application/json' },
+    });
+    const res = await PATCH(req);
+    expect(res.status).toBe(401);
+  });
+
+  it('devuelve 403 cuando el usuario no pertenece a la clinica de la cita', async () => {
+    mockPatchAppointments({ membership: null });
+
+    const req = new NextRequest('https://example.com/api/appointments', {
+      method: 'PATCH',
+      body: JSON.stringify({ id: APPT_ID, status: 'completed' }),
+      headers: { 'content-type': 'application/json' },
+    });
+    const res = await PATCH(req);
+    expect(res.status).toBe(403);
+  });
+
+  it('devuelve 404 cuando la cita no existe', async () => {
+    mockPatchAppointments({ existingClinicId: null });
+
+    const req = new NextRequest('https://example.com/api/appointments', {
+      method: 'PATCH',
+      body: JSON.stringify({ id: APPT_ID, status: 'completed' }),
+      headers: { 'content-type': 'application/json' },
+    });
+    const res = await PATCH(req);
+    expect(res.status).toBe(404);
   });
 });
