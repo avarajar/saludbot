@@ -16,12 +16,14 @@ vi.mock('@/lib/whatsapp/templates', () => ({
   sendBusinessMessage: mockSendBusinessMessage,
 }));
 
-const { mockSetSession } = vi.hoisted(() => ({
+const { mockSetSession, mockGetActiveSession } = vi.hoisted(() => ({
   mockSetSession: vi.fn().mockResolvedValue(undefined),
+  mockGetActiveSession: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock('@/lib/db/sessions', () => ({
   setSession: mockSetSession,
+  getActiveSession: mockGetActiveSession,
 }));
 
 /**
@@ -182,6 +184,7 @@ describe('processReminders', () => {
     // not leak into the next test.
     mockSendBusinessMessage.mockResolvedValue('SM123');
     mockSetSession.mockResolvedValue(undefined);
+    mockGetActiveSession.mockResolvedValue(null);
   });
 
   function setupMocks(options: {
@@ -424,6 +427,55 @@ describe('processReminders', () => {
     expect(updateCalls).toContainEqual({ reminder_48h_sent: false });
   });
 
+  it('registra en consola con severidad si el revert del flag tambien falla (flag stranded en true)', async () => {
+    const { date: dateStr, time: timeStr } = appointmentInBogota(36);
+
+    const appointment: Appointment = {
+      ...mockAppointment,
+      date: dateStr,
+      start_time: timeStr,
+    };
+
+    const appointmentsQueryChain = createChain({ data: [appointment], error: null });
+    const claimChain = createChain({ data: [{ id: 'claimed' }], error: null });
+    // The revert update (second `.update()` call on `appointments`) fails.
+    const revertChain = createChain({ data: null, error: { message: 'db down' } });
+    const reminderLogsChain = createChain({ data: null, error: null });
+    const clinicsChain = createChain({ data: [mockClinic], error: null });
+    const patientsChain = createChain({ data: [mockPatient], error: null });
+
+    let appointmentsCallCount = 0;
+    mockSupabaseFrom.mockImplementation((table: string) => {
+      switch (table) {
+        case 'appointments':
+          appointmentsCallCount++;
+          if (appointmentsCallCount === 1) return appointmentsQueryChain;
+          if (appointmentsCallCount === 2) return claimChain;
+          return revertChain;
+        case 'clinics':
+          return clinicsChain;
+        case 'patients':
+          return patientsChain;
+        case 'reminder_logs':
+          return reminderLogsChain;
+        default:
+          return createChain();
+      }
+    });
+
+    mockSendBusinessMessage.mockRejectedValueOnce(new Error('Twilio down'));
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const result = await processReminders();
+
+    expect(result.errors).toBe(1);
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('stranded'),
+      expect.objectContaining({ message: 'db down' }),
+    );
+    consoleErrorSpy.mockRestore();
+  });
+
   it('no envia si otro proceso ya reclamo el flag (update no retorna filas)', async () => {
     const { date: dateStr, time: timeStr } = appointmentInBogota(36);
 
@@ -480,6 +532,56 @@ describe('processReminders', () => {
 
     await processReminders();
 
+    expect(mockSetSession).toHaveBeenCalledWith(
+      appointment.clinic_id,
+      appointment.patient_id,
+      'awaiting_reminder_reply',
+      { appointment_id: appointment.id },
+      24 * 60,
+    );
+  });
+
+  it('no sobreescribe una sesion activa (awaiting_slot) tras enviar recordatorio 48h', async () => {
+    const { date: dateStr, time: timeStr } = appointmentInBogota(36);
+
+    const appointment: Appointment = {
+      ...mockAppointment,
+      date: dateStr,
+      start_time: timeStr,
+    };
+
+    setupMocks({ appointments: [appointment] });
+    mockGetActiveSession.mockResolvedValueOnce({
+      id: 'sess-1',
+      clinic_id: appointment.clinic_id,
+      patient_id: appointment.patient_id,
+      state: 'awaiting_slot',
+      context: {},
+      expires_at: '2099-01-01T00:00:00Z',
+    } as never);
+
+    const result = await processReminders();
+
+    // El recordatorio se envia igual; solo se evita pisar la sesion activa.
+    expect(result.sent48h).toBe(1);
+    expect(mockSetSession).not.toHaveBeenCalled();
+  });
+
+  it('establece awaiting_reminder_reply cuando no hay sesion activa (getActiveSession retorna null)', async () => {
+    const { date: dateStr, time: timeStr } = appointmentInBogota(36);
+
+    const appointment: Appointment = {
+      ...mockAppointment,
+      date: dateStr,
+      start_time: timeStr,
+    };
+
+    setupMocks({ appointments: [appointment] });
+    mockGetActiveSession.mockResolvedValueOnce(null);
+
+    await processReminders();
+
+    expect(mockGetActiveSession).toHaveBeenCalledWith(appointment.clinic_id, appointment.patient_id);
     expect(mockSetSession).toHaveBeenCalledWith(
       appointment.clinic_id,
       appointment.patient_id,

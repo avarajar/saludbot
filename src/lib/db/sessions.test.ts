@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockMaybeSingle = vi.fn();
 const mockUpsert = vi.fn().mockResolvedValue({ error: null });
-const mockDelete = vi.fn();
 const chain = {
   select: vi.fn().mockReturnThis(),
   eq: vi.fn().mockReturnThis(),
