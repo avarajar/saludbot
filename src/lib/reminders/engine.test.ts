@@ -15,6 +15,14 @@ vi.mock('@/lib/whatsapp/client', () => ({
   sendMessage: mockSendMessage,
 }));
 
+const { mockSetSession } = vi.hoisted(() => ({
+  mockSetSession: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('@/lib/db/sessions', () => ({
+  setSession: mockSetSession,
+}));
+
 /**
  * Returns a date/time pair as the engine would interpret it (in Bogota timezone).
  * offsetHours is relative to "now" in Bogota.
@@ -168,6 +176,11 @@ describe('generateReminderMessage', () => {
 describe('processReminders', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Re-establish default resolved values after clearAllMocks, since a
+    // prior test's mockResolvedValueOnce/mockRejectedValueOnce queue must
+    // not leak into the next test.
+    mockSendMessage.mockResolvedValue('SM123');
+    mockSetSession.mockResolvedValue(undefined);
   });
 
   function setupMocks(options: {
@@ -399,5 +412,101 @@ describe('processReminders', () => {
     expect(mockSendMessage).not.toHaveBeenCalled();
     expect(result.sent48h).toBe(0);
     expect(result.errors).toBe(0);
+  });
+
+  it('deja la sesion en awaiting_reminder_reply tras enviar recordatorio 48h', async () => {
+    const { date: dateStr, time: timeStr } = appointmentInBogota(36);
+
+    const appointment: Appointment = {
+      ...mockAppointment,
+      date: dateStr,
+      start_time: timeStr,
+    };
+
+    setupMocks({ appointments: [appointment] });
+
+    await processReminders();
+
+    expect(mockSetSession).toHaveBeenCalledWith(
+      appointment.clinic_id,
+      appointment.patient_id,
+      'awaiting_reminder_reply',
+      { appointment_id: appointment.id },
+      24 * 60,
+    );
+  });
+
+  it('deja la sesion en awaiting_reminder_reply tras enviar recordatorio 24h', async () => {
+    const { date: dateStr, time: timeStr } = appointmentInBogota(12);
+
+    const appointment: Appointment = {
+      ...mockAppointment,
+      date: dateStr,
+      start_time: timeStr,
+      reminder_48h_sent: true,
+      reminder_24h_sent: false,
+      reminder_2h_sent: false,
+    };
+
+    setupMocks({ appointments: [appointment] });
+
+    await processReminders();
+
+    expect(mockSetSession).toHaveBeenCalledWith(
+      appointment.clinic_id,
+      appointment.patient_id,
+      'awaiting_reminder_reply',
+      { appointment_id: appointment.id },
+      24 * 60,
+    );
+  });
+
+  it('NO establece sesion tras enviar recordatorio 2h', async () => {
+    const { date: dateStr, time: timeStr } = appointmentInBogota(1);
+
+    const appointment: Appointment = {
+      ...mockAppointment,
+      date: dateStr,
+      start_time: timeStr,
+      reminder_48h_sent: true,
+      reminder_24h_sent: true,
+      reminder_2h_sent: false,
+    };
+
+    setupMocks({ appointments: [appointment] });
+
+    const result = await processReminders();
+
+    expect(result.sent2h).toBe(1);
+    expect(mockSetSession).not.toHaveBeenCalled();
+  });
+
+  it('no marca el recordatorio como fallido si setSession falla despues del envio exitoso', async () => {
+    const { date: dateStr, time: timeStr } = appointmentInBogota(36);
+
+    const appointment: Appointment = {
+      ...mockAppointment,
+      date: dateStr,
+      start_time: timeStr,
+    };
+
+    const { appointmentsUpdateChain } = setupMocks({ appointments: [appointment] });
+    mockSetSession.mockRejectedValueOnce(new Error('sessions table down'));
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const result = await processReminders();
+
+    // The WhatsApp message already went out, so this must still count as sent,
+    // with no revert of the claim flag.
+    expect(result.sent48h).toBe(1);
+    expect(result.errors).toBe(0);
+
+    const updateMock = appointmentsUpdateChain.update as ReturnType<typeof vi.fn>;
+    const updateCalls = updateMock.mock.calls.map((c: unknown[]) => c[0]);
+    expect(updateCalls).toContainEqual({ reminder_48h_sent: true });
+    expect(updateCalls).not.toContainEqual({ reminder_48h_sent: false });
+
+    expect(consoleErrorSpy).toHaveBeenCalled();
+    consoleErrorSpy.mockRestore();
   });
 });

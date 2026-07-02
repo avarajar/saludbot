@@ -5,6 +5,7 @@ import {
 } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { supabaseAdmin as getSupabase } from '@/lib/db/supabase';
+import { setSession } from '@/lib/db/sessions';
 import { sendMessage } from '@/lib/whatsapp/client';
 import type {
   Appointment,
@@ -158,6 +159,28 @@ export async function processReminders(): Promise<{
         );
 
         await sendMessage(patient.phone, message, clinic.whatsapp_number);
+
+        if (reminder.type === '48h' || reminder.type === '24h') {
+          // La respuesta "1"/"2" del paciente se interpreta contra esta sesion.
+          // Se envuelve en su propio try/catch: el recordatorio YA se envio,
+          // asi que un fallo aqui no debe revertir el claim ni marcar el
+          // recordatorio como fallido (eso duplicaria el envio en el proximo
+          // cron run).
+          try {
+            await setSession(
+              appointment.clinic_id,
+              appointment.patient_id,
+              'awaiting_reminder_reply',
+              { appointment_id: appointment.id },
+              24 * 60,
+            );
+          } catch (sessionErr) {
+            console.error(
+              `Failed to set awaiting_reminder_reply session for appointment ${appointment.id}:`,
+              sessionErr,
+            );
+          }
+        }
 
         // Log the reminder
         await supabase.from('reminder_logs').insert({
