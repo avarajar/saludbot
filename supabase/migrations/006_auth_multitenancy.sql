@@ -4,6 +4,42 @@
 -- sesiones de enrutamiento para números de WhatsApp compartidos.
 -- ============================================================================
 
+-- ── Corrección de seguridad: acotar políticas permisivas de 001 ────────────
+-- Las seis políticas "Service role full access on <tabla>" creadas en
+-- 001_initial_schema.sql se definieron con `for all using (true) with check
+-- (true)` sin cláusula `to`, por lo que quedaron aplicadas a PUBLIC (todo rol,
+-- incluidos `anon` y `authenticated`). Como las políticas permisivas de
+-- Postgres se combinan con OR, esas seis políticas permitían acceso total a
+-- cualquier cliente autenticado o anónimo y neutralizaban por completo el
+-- aislamiento por clínica que introducen las políticas nuevas de esta
+-- migración (cualquier usuario podía leer/escribir datos de cualquier
+-- clínica). Se eliminan y se recrean acotadas a `service_role`, siguiendo el
+-- mismo patrón ya usado correctamente en 005_conversation_sessions.sql.
+
+drop policy "Service role full access on clinics" on clinics;
+create policy "Service role full access on clinics"
+  on clinics for all to service_role using (true) with check (true);
+
+drop policy "Service role full access on patients" on patients;
+create policy "Service role full access on patients"
+  on patients for all to service_role using (true) with check (true);
+
+drop policy "Service role full access on appointments" on appointments;
+create policy "Service role full access on appointments"
+  on appointments for all to service_role using (true) with check (true);
+
+drop policy "Service role full access on conversations" on conversations;
+create policy "Service role full access on conversations"
+  on conversations for all to service_role using (true) with check (true);
+
+drop policy "Service role full access on clinic_services" on clinic_services;
+create policy "Service role full access on clinic_services"
+  on clinic_services for all to service_role using (true) with check (true);
+
+drop policy "Service role full access on reminder_logs" on reminder_logs;
+create policy "Service role full access on reminder_logs"
+  on reminder_logs for all to service_role using (true) with check (true);
+
 create table clinic_users (
   user_id uuid not null references auth.users(id) on delete cascade,
   clinic_id uuid not null references clinics(id) on delete cascade,
