@@ -16,7 +16,9 @@ export async function popRoutingChoice(phone: string, message: string): Promise<
   const pending = await getRoutingSession(phone);
   if (!pending) return null;
 
-  const candidates = await getClinicsByIds(pending.candidate_clinic_ids);
+  const clinics = await getClinicsByIds(pending.candidate_clinic_ids);
+  const byId = new Map(clinics.map((c) => [c.id, c]));
+  const candidates = pending.candidate_clinic_ids.map((id) => byId.get(id)).filter(Boolean) as Clinic[];
   const choice = parseNumericChoice(message, candidates.length);
   let chosen: Clinic | null = choice ? candidates[choice - 1] : null;
   if (!chosen) {
@@ -46,16 +48,23 @@ export async function resolveClinic(to: string, from: string, body: string): Pro
   const fromPending = await popRoutingChoice(from, body);
   if (fromPending) return { status: 'resolved', clinic: fromPending };
 
-  const byPatient = await getClinicsForPatientPhone(from);
+  const numberIds = new Set(byNumber.map((c) => c.id));
+  const byPatientAll = await getClinicsForPatientPhone(from);
+  const byPatient = byPatientAll.filter((c) => numberIds.has(c.id));
   if (byPatient.length === 1) return { status: 'resolved', clinic: byPatient[0] };
 
   const slugMatch = body.match(SLUG_MENTION);
   if (slugMatch) {
     const bySlug = await getActiveClinicBySlug(slugMatch[1].toLowerCase());
-    if (bySlug) return { status: 'resolved', clinic: bySlug };
+    if (bySlug && numberIds.has(bySlug.id)) return { status: 'resolved', clinic: bySlug };
   }
 
-  const candidates = byPatient.length >= 2 ? byPatient : byNumber;
+  const candidates =
+    byPatient.length >= 2 && byPatient.length <= 5
+      ? byPatient
+      : byNumber.length >= 2 && byNumber.length <= 5
+        ? byNumber
+        : [];
   if (candidates.length >= 2 && candidates.length <= 5) {
     return { status: 'ambiguous', candidates };
   }

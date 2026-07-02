@@ -63,6 +63,49 @@ describe('resolveClinic', () => {
     expect(r).toEqual({ status: 'resolved', clinic: clinicA });
     expect(rq.deleteRoutingSession).toHaveBeenCalledWith('+573009');
   });
+
+  it('paciente asociado a una clinica de OTRO numero de WhatsApp → no resuelve por esa clinica', async () => {
+    // El paciente comparte telefono con otra clinica (clinicC) que no atiende por este numero (to).
+    const clinicC = { id: 'cc', name: 'Clinica C', slug: 'clinica-c', active: true } as Clinic;
+    vi.mocked(rq.getActiveClinicsByNumber).mockResolvedValue([clinicA, clinicB]);
+    vi.mocked(rq.getRoutingSession).mockResolvedValue(null);
+    vi.mocked(rq.getClinicsForPatientPhone).mockResolvedValue([clinicC]);
+    vi.mocked(rq.getActiveClinicBySlug).mockResolvedValue(null);
+    const r = await resolveClinic('+573001', '+573009', 'Hola');
+    // clinicC no pertenece al numero mensajeado, asi que no debe resolverse por ella; byPatient queda vacio.
+    expect(r.status).not.toBe('resolved');
+  });
+
+  it('slug mencionado corresponde a una clinica de OTRO numero → no resuelve por ese slug', async () => {
+    const clinicC = { id: 'cc', name: 'Clinica C', slug: 'clinica-c', active: true } as Clinic;
+    vi.mocked(rq.getActiveClinicsByNumber).mockResolvedValue([clinicA, clinicB]);
+    vi.mocked(rq.getRoutingSession).mockResolvedValue(null);
+    vi.mocked(rq.getClinicsForPatientPhone).mockResolvedValue([]);
+    vi.mocked(rq.getActiveClinicBySlug).mockResolvedValue(clinicC);
+    const r = await resolveClinic('+573001', '+573009', 'Hola, vengo de clinica-c');
+    expect(r.status).not.toBe('resolved');
+    if (r.status === 'ambiguous') {
+      expect(r.candidates).toEqual([clinicA, clinicB]);
+    }
+  });
+
+  it('byPatient con mas de 5 clinicas cae a byNumber (2..5) en vez de quedar sin resolver', async () => {
+    const many = Array.from({ length: 6 }, (_, i) => ({
+      id: `p${i}`, name: `Clinica P${i}`, slug: `clinica-p${i}`, active: true,
+    } as Clinic));
+    const byNumber = [clinicA, clinicB, { id: 'cc', name: 'Clinica C', slug: 'clinica-c', active: true } as Clinic];
+    // El numero mensajeado sirve a byNumber; el paciente aparece asociado a las mismas clinicas del numero
+    // (para que el filtro por numberIds no las descarte) mas otras extra que sí quedan fuera del numero.
+    const numberIds = new Set(byNumber.map((c) => c.id));
+    vi.mocked(rq.getActiveClinicsByNumber).mockResolvedValue(byNumber);
+    vi.mocked(rq.getRoutingSession).mockResolvedValue(null);
+    vi.mocked(rq.getClinicsForPatientPhone).mockResolvedValue(many);
+    vi.mocked(rq.getActiveClinicBySlug).mockResolvedValue(null);
+    const r = await resolveClinic('+573001', '+573009', 'Hola');
+    // many (6) queda filtrado a 0 elementos dentro de numberIds (ninguno coincide), asi que cae a byNumber (3).
+    expect(many.some((c) => numberIds.has(c.id))).toBe(false);
+    expect(r).toEqual({ status: 'ambiguous', candidates: byNumber });
+  });
 });
 
 describe('popRoutingChoice', () => {
@@ -84,5 +127,32 @@ describe('popRoutingChoice', () => {
     const r = await popRoutingChoice('+573009', 'quiero clinica-b');
     expect(r).toEqual(clinicB);
     expect(rq.deleteRoutingSession).toHaveBeenCalledWith('+573009');
+  });
+
+  it('reordena candidatos segun el orden guardado en la sesion, no el orden devuelto por la query', async () => {
+    vi.mocked(rq.getRoutingSession).mockResolvedValue({
+      phone: '+573009',
+      candidate_clinic_ids: ['ca', 'cb'],
+      expires_at: '',
+    } as never);
+    // getClinicsByIds (via .in()) no garantiza orden: la devolvemos invertida.
+    vi.mocked(rq.getClinicsByIds).mockResolvedValue([clinicB, clinicA]);
+    const r = await popRoutingChoice('+573009', '1');
+    // "1" debe corresponder a la primera clinica en candidate_clinic_ids (ca), no en la respuesta de la query.
+    expect(r).toEqual(clinicA);
+    expect(rq.deleteRoutingSession).toHaveBeenCalledWith('+573009');
+  });
+
+  it('una clinica inactiva en candidate_clinic_ids no puede ser elegida', async () => {
+    vi.mocked(rq.getRoutingSession).mockResolvedValue({
+      phone: '+573009',
+      candidate_clinic_ids: ['ca', 'cb', 'inactive-clinic'],
+      expires_at: '',
+    } as never);
+    // getClinicsByIds filtra por active=true en la query real; la clinica inactiva nunca vuelve.
+    vi.mocked(rq.getClinicsByIds).mockResolvedValue([clinicA, clinicB]);
+    const r = await popRoutingChoice('+573009', '3');
+    expect(r).toBeNull();
+    expect(rq.deleteRoutingSession).not.toHaveBeenCalled();
   });
 });

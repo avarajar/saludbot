@@ -35,7 +35,7 @@ export async function getActiveClinicBySlug(slug: string): Promise<Clinic | null
 
 export async function getClinicsByIds(ids: string[]): Promise<Clinic[]> {
   const { data, error } = await getAdmin()
-    .from('clinics').select('*').in('id', ids);
+    .from('clinics').select('*').in('id', ids).eq('active', true);
   if (error) throw new Error(`getClinicsByIds failed: ${error.message}`);
   return data ?? [];
 }
