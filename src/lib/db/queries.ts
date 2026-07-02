@@ -413,6 +413,29 @@ export async function insertInboundConversation(
 }
 
 /**
+ * Returns the most recent conversation messages between a patient and a
+ * clinic, ordered oldest-first (suitable for feeding into the classifier
+ * as conversation history).
+ */
+export async function getRecentConversations(
+  clinicId: string,
+  patientId: string,
+  limit: number = 6,
+): Promise<Conversation[]> {
+  const { data, error } = await getAdmin()
+    .from('conversations')
+    .select('*')
+    .eq('clinic_id', clinicId)
+    .eq('patient_id', patientId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) {
+    throw new Error(`getRecentConversations failed: ${error.message}`);
+  }
+  return (data ?? []).reverse();
+}
+
+/**
  * Updates the classified intent on an already-logged inbound conversation row.
  */
 export async function updateConversationIntent(

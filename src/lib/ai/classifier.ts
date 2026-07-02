@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { ConversationIntent } from '@/types';
+import type { ConversationIntent, MessageDirection } from '@/types';
 
 const anthropic = new Anthropic();
 
@@ -13,6 +13,7 @@ interface ClassificationContext {
   patientName?: string;
   clinicName?: string;
   clinicServices?: string[];
+  history?: { direction: MessageDirection; message: string }[];
 }
 
 const VALID_INTENTS: ConversationIntent[] = [
@@ -48,6 +49,12 @@ export async function classifyIntent(
     .filter(Boolean)
     .join('\n');
 
+  const historyHint = context?.history?.length
+    ? `\nHistorial reciente (mas antiguo primero):\n${context.history
+        .map((h) => `${h.direction === 'inbound' ? 'Paciente' : 'Bot'}: ${h.message}`)
+        .join('\n')}`
+    : '';
+
   const systemPrompt = `Eres un clasificador de intenciones para un chatbot de WhatsApp de una clinica de salud en Colombia.
 
 Tu tarea es analizar el mensaje del paciente y devolver un JSON con:
@@ -71,7 +78,7 @@ Guia de intenciones:
 - escalate: el paciente pide hablar con un humano, tiene una queja, o es una urgencia medica
 - other: no encaja en ninguna de las anteriores
 
-${contextHint}
+${contextHint}${historyHint}
 
 IMPORTANTE: Responde UNICAMENTE con el JSON, sin texto adicional ni backticks.`;
 

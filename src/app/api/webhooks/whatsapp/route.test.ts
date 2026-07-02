@@ -7,6 +7,7 @@ vi.mock('@/lib/db/queries', () => ({
   createPatient: vi.fn(),
   updatePatient: vi.fn(),
   getClinicServices: vi.fn().mockResolvedValue([]),
+  getRecentConversations: vi.fn().mockResolvedValue([]),
   logConversation: vi.fn(),
   insertInboundConversation: vi.fn(),
   updateConversationIntent: vi.fn(),
@@ -27,6 +28,13 @@ vi.mock('@/lib/whatsapp/handlers', () => ({
   handleGreeting: vi.fn(),
   handleEscalate: vi.fn(),
 }));
+vi.mock('@/lib/db/sessions', () => ({
+  getActiveSession: vi.fn().mockResolvedValue(null),
+  clearSession: vi.fn(),
+}));
+vi.mock('@/lib/whatsapp/flow', () => ({
+  continueSession: vi.fn(),
+}));
 
 import { POST } from './route';
 import {
@@ -36,10 +44,13 @@ import {
   updateConversationIntent,
   updatePatient,
   logConversation,
+  getRecentConversations,
 } from '@/lib/db/queries';
 import { classifyIntent } from '@/lib/ai/classifier';
 import { sendMessage, validateWebhook } from '@/lib/whatsapp/client';
-import { handleGreeting } from '@/lib/whatsapp/handlers';
+import { handleGreeting, handleInfoHours } from '@/lib/whatsapp/handlers';
+import { getActiveSession, clearSession } from '@/lib/db/sessions';
+import { continueSession } from '@/lib/whatsapp/flow';
 
 function twilioRequest(overrides: Record<string, string> = {}): NextRequest {
   const form = new URLSearchParams({
@@ -72,6 +83,8 @@ describe('webhook idempotency', () => {
     vi.clearAllMocks();
     vi.mocked(getClinicByPhone).mockResolvedValue(clinic as never);
     vi.mocked(getPatientByPhone).mockResolvedValue(patient as never);
+    vi.mocked(getActiveSession).mockResolvedValue(null);
+    vi.mocked(getRecentConversations).mockResolvedValue([]);
   });
 
   it('ignora un MessageSid duplicado sin clasificar ni responder', async () => {
@@ -132,6 +145,8 @@ describe('signature validation', () => {
     vi.mocked(getClinicByPhone).mockResolvedValue(clinic as never);
     vi.mocked(getPatientByPhone).mockResolvedValue(patient as never);
     vi.mocked(insertInboundConversation).mockResolvedValue({ conversation: { id: 'conv1' } as never, duplicate: false });
+    vi.mocked(getActiveSession).mockResolvedValue(null);
+    vi.mocked(getRecentConversations).mockResolvedValue([]);
   });
 
   it('en produccion sin TWILIO_WEBHOOK_URL rechaza el mensaje', async () => {
@@ -169,6 +184,8 @@ describe('persistencia de nombre y SID saliente', () => {
     vi.mocked(getClinicByPhone).mockResolvedValue(clinic as never);
     vi.mocked(getPatientByPhone).mockResolvedValue(patient as never);
     vi.mocked(sendMessage).mockResolvedValue('SM_out');
+    vi.mocked(getActiveSession).mockResolvedValue(null);
+    vi.mocked(getRecentConversations).mockResolvedValue([]);
   });
 
   it('persiste el nombre extraido cuando el paciente no tiene nombre', async () => {
@@ -194,5 +211,42 @@ describe('persistencia de nombre y SID saliente', () => {
     expect(logConversation).toHaveBeenCalledWith(
       expect.objectContaining({ direction: 'outbound', whatsapp_message_id: 'SM_out' }),
     );
+  });
+});
+
+describe('sesiones activas', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(validateWebhook).mockReturnValue(true);
+    vi.mocked(getClinicByPhone).mockResolvedValue(clinic as never);
+    vi.mocked(getPatientByPhone).mockResolvedValue(patient as never);
+    vi.mocked(sendMessage).mockResolvedValue('SM_out');
+    vi.mocked(getActiveSession).mockResolvedValue(null);
+    vi.mocked(getRecentConversations).mockResolvedValue([]);
+  });
+
+  it('con sesion activa, la respuesta se interpreta contra la sesion (no clasifica)', async () => {
+    vi.mocked(insertInboundConversation).mockResolvedValue({ conversation: { id: 'conv1' } as never, duplicate: false });
+    vi.mocked(getActiveSession).mockResolvedValue({ id: 'ses1', state: 'awaiting_slot', context: {} } as never);
+    vi.mocked(continueSession).mockResolvedValue({ handled: true, reply: 'Cita agendada' });
+
+    await POST(twilioRequest({ Body: '1' }));
+
+    expect(continueSession).toHaveBeenCalled();
+    expect(classifyIntent).not.toHaveBeenCalled();
+    expect(sendMessage).toHaveBeenCalledWith('+573009876543', 'Cita agendada', clinic.whatsapp_number);
+  });
+
+  it('si la sesion no maneja la respuesta, se limpia y se clasifica normal', async () => {
+    vi.mocked(insertInboundConversation).mockResolvedValue({ conversation: { id: 'conv1' } as never, duplicate: false });
+    vi.mocked(getActiveSession).mockResolvedValue({ id: 'ses1', state: 'awaiting_slot', context: {} } as never);
+    vi.mocked(continueSession).mockResolvedValue({ handled: false });
+    vi.mocked(classifyIntent).mockResolvedValue({ intent: 'info_hours', confidence: 0.9, entities: {} });
+    vi.mocked(handleInfoHours).mockResolvedValue('Horario: ...');
+
+    await POST(twilioRequest({ Body: 'a que hora abren?' }));
+
+    expect(clearSession).toHaveBeenCalled();
+    expect(classifyIntent).toHaveBeenCalled();
   });
 });

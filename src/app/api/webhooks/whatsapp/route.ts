@@ -6,6 +6,7 @@ import {
   createPatient,
   updatePatient,
   getClinicServices,
+  getRecentConversations,
   logConversation,
   insertInboundConversation,
   updateConversationIntent,
@@ -23,6 +24,8 @@ import {
   handleGreeting,
   handleEscalate,
 } from '@/lib/whatsapp/handlers';
+import { getActiveSession, clearSession } from '@/lib/db/sessions';
+import { continueSession } from '@/lib/whatsapp/flow';
 
 /**
  * POST /api/webhooks/whatsapp
@@ -93,12 +96,37 @@ export async function POST(request: NextRequest) {
       return twimlResponse('');
     }
 
-    // ── Classify intent ───────────────────────────────────────────────────
+    // ── Sesion activa: interpretar contra el estado pendiente ──────────────
     const services = await getClinicServices(clinic.id);
+    const session = await getActiveSession(clinic.id, patient.id);
+
+    if (session && session.state !== 'idle') {
+      const result = await continueSession({ session, message: body, clinic, patient, services });
+      if (result.handled && result.reply) {
+        const sid = await sendMessage(from, result.reply, clinic.whatsapp_number);
+        await logConversation({
+          clinic_id: clinic.id,
+          patient_id: patient.id,
+          whatsapp_message_id: sid,
+          direction: 'outbound',
+          message: result.reply,
+          intent: null,
+        });
+        return twimlResponse('');
+      }
+      // La respuesta no corresponde al flujo pendiente: abandonarlo.
+      await clearSession(clinic.id, patient.id);
+    }
+
+    // ── Clasificar con historial ────────────────────────────────────────────
+    const history = await getRecentConversations(clinic.id, patient.id, 6);
     const classification = await classifyIntent(body, {
       patientName: patient.name || undefined,
       clinicName: clinic.name,
       clinicServices: services.map((s) => s.name),
+      history: history
+        .filter((h) => h.message !== body)
+        .map((h) => ({ direction: h.direction, message: h.message })),
     });
 
     // Update patient name if extracted and not yet set
