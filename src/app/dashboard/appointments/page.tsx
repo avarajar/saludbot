@@ -5,6 +5,8 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import { useCallback, useEffect, useState } from "react";
 import type { Appointment, AppointmentStatus, Patient } from "@/types";
 import { useClinic } from "@/lib/auth/clinic-context";
+import { TZDate } from "@date-fns/tz";
+import { format } from "date-fns";
 
 interface AppointmentWithPatient extends Appointment {
   patients: { name: string; phone: string } | null;
@@ -20,7 +22,7 @@ function formatDate(dateStr: string): string {
 }
 
 function getTodayDate(): string {
-  return new Date().toISOString().split("T")[0];
+  return format(TZDate.tz("America/Bogota"), "yyyy-MM-dd");
 }
 
 export default function AppointmentsPage() {
