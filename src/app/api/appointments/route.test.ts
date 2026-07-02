@@ -5,7 +5,7 @@ import { NextRequest } from 'next/server';
 // Every method returns the same chain object so optional filters work
 function createChain(resolvedData: { data: unknown; error: unknown } = { data: null, error: null }) {
   const chain: Record<string, unknown> = {};
-  const methods = ['select', 'eq', 'order', 'in', 'gte', 'single', 'insert', 'maybeSingle', 'or'];
+  const methods = ['select', 'eq', 'order', 'in', 'gte', 'single', 'insert', 'update', 'maybeSingle', 'or'];
   for (const m of methods) {
     (chain as Record<string, ReturnType<typeof vi.fn>>)[m] = vi.fn().mockReturnValue(chain);
   }
@@ -44,7 +44,7 @@ vi.stubEnv('TWILIO_ACCOUNT_SID', 'AC_test');
 vi.stubEnv('TWILIO_AUTH_TOKEN', 'auth_test');
 vi.stubEnv('TWILIO_WHATSAPP_NUMBER', '+14155238886');
 
-import { GET, POST } from './route';
+import { GET, POST, PATCH } from './route';
 
 function makeGetRequest(params: Record<string, string>) {
   const url = new URL('http://localhost:3000/api/appointments');
@@ -298,5 +298,39 @@ describe('POST /api/appointments', () => {
 
     expect(response.status).toBe(500);
     expect(data.error).toContain('Failed to create appointment');
+  });
+});
+
+describe('PATCH /api/appointments', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('actualiza el estado de la cita', async () => {
+    const chain = createChain({
+      data: { id: '550e8400-e29b-41d4-a716-446655440099', status: 'completed' },
+      error: null,
+    });
+    mockSupabaseFrom.mockReturnValue(chain);
+
+    const req = new NextRequest('https://example.com/api/appointments', {
+      method: 'PATCH',
+      body: JSON.stringify({ id: '550e8400-e29b-41d4-a716-446655440099', status: 'completed' }),
+      headers: { 'content-type': 'application/json' },
+    });
+    const res = await PATCH(req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.appointment.status).toBe('completed');
+  });
+
+  it('rechaza estados invalidos', async () => {
+    const req = new NextRequest('https://example.com/api/appointments', {
+      method: 'PATCH',
+      body: JSON.stringify({ id: '550e8400-e29b-41d4-a716-446655440099', status: 'volando' }),
+      headers: { 'content-type': 'application/json' },
+    });
+    const res = await PATCH(req);
+    expect(res.status).toBe(400);
   });
 });

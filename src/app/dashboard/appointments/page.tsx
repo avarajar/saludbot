@@ -19,6 +19,10 @@ function formatDate(dateStr: string): string {
   });
 }
 
+function getTodayDate(): string {
+  return new Date().toISOString().split("T")[0];
+}
+
 export default function AppointmentsPage() {
   const { clinic } = useClinic();
   const [appointments, setAppointments] = useState<AppointmentWithPatient[]>(
@@ -122,22 +126,31 @@ export default function AppointmentsPage() {
     }
   };
 
-  const handleComplete = async (appointmentId: string) => {
+  const closeAppointment = async (
+    appointmentId: string,
+    status: "completed" | "no_show"
+  ) => {
     try {
       const res = await fetch("/api/appointments", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: appointmentId, status: "completed" }),
+        body: JSON.stringify({ id: appointmentId, status }),
       });
 
       if (!res.ok) {
-        throw new Error("Error al completar la cita");
+        throw new Error(
+          status === "completed"
+            ? "Error al completar la cita"
+            : "Error al marcar la cita como no asistida"
+        );
       }
 
       await fetchAppointments();
     } catch (err) {
       alert(
-        err instanceof Error ? err.message : "Error al completar la cita"
+        err instanceof Error
+          ? err.message
+          : "Error al actualizar el estado de la cita"
       );
     }
   };
@@ -464,18 +477,30 @@ export default function AppointmentsPage() {
                             </>
                           )}
                           {(apt.status === "confirmed" ||
-                            apt.status === "scheduled") && (
-                            <>
-                              <button
-                                onClick={() => handleComplete(apt.id)}
-                                className="text-sm text-gray-500 hover:text-gray-700 font-medium"
-                                title="Completar"
-                              >
-                                Completar
-                              </button>
-                              <span className="text-gray-300">|</span>
-                            </>
-                          )}
+                            apt.status === "scheduled") &&
+                            apt.date < getTodayDate() && (
+                              <>
+                                <button
+                                  onClick={() =>
+                                    closeAppointment(apt.id, "completed")
+                                  }
+                                  className="text-xs text-green-700 underline"
+                                  title="Marcar como completada"
+                                >
+                                  Completada
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    closeAppointment(apt.id, "no_show")
+                                  }
+                                  className="text-xs text-red-700 underline"
+                                  title="Marcar como no asistió"
+                                >
+                                  No asistió
+                                </button>
+                                <span className="text-gray-300">|</span>
+                              </>
+                            )}
                           {apt.status !== "cancelled" &&
                             apt.status !== "completed" && (
                               <button
