@@ -250,3 +250,57 @@ describe('sesiones activas', () => {
     expect(classifyIntent).toHaveBeenCalled();
   });
 });
+
+describe('historial de clasificación', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(validateWebhook).mockReturnValue(true);
+    vi.mocked(getClinicByPhone).mockResolvedValue(clinic as never);
+    vi.mocked(getPatientByPhone).mockResolvedValue(patient as never);
+    vi.mocked(sendMessage).mockResolvedValue('SM_out');
+    vi.mocked(getActiveSession).mockResolvedValue(null);
+  });
+
+  it('excluye el mensaje actual del historial por id de fila, no por texto', async () => {
+    vi.mocked(insertInboundConversation).mockResolvedValue({
+      conversation: { id: 'conv1' } as never,
+      duplicate: false,
+    });
+    vi.mocked(getRecentConversations).mockResolvedValue([
+      {
+        id: 'old-1',
+        clinic_id: 'c1',
+        patient_id: 'p1',
+        whatsapp_message_id: 'SMold',
+        direction: 'inbound',
+        message: '1',
+        intent: null,
+        created_at: '2026-01-01T00:00:00Z',
+      },
+      {
+        id: 'conv1',
+        clinic_id: 'c1',
+        patient_id: 'p1',
+        whatsapp_message_id: 'SM123',
+        direction: 'inbound',
+        message: '1',
+        intent: null,
+        created_at: '2026-01-01T00:00:01Z',
+      },
+    ] as never);
+    vi.mocked(classifyIntent).mockResolvedValue({
+      intent: 'greeting',
+      entities: {},
+    } as never);
+    vi.mocked(handleGreeting).mockResolvedValue('Bienvenido');
+
+    await POST(twilioRequest({ Body: '1' }));
+
+    expect(classifyIntent).toHaveBeenCalled();
+    const options = vi.mocked(classifyIntent).mock.calls[0][1] as {
+      history: { direction: string; message: string }[];
+    };
+    expect(options.history).toHaveLength(1);
+    expect(options.history[0]).toEqual({ direction: 'inbound', message: '1' });
+  });
+});

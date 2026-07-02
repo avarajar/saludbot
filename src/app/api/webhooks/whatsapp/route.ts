@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
       clinicName: clinic.name,
       clinicServices: services.map((s) => s.name),
       history: history
-        .filter((h) => h.message !== body)
+        .filter((h) => h.id !== inbound?.id)
         .map((h) => ({ direction: h.direction, message: h.message })),
     });
 
