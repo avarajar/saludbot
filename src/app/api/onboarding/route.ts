@@ -3,6 +3,18 @@ import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/auth/supabase-server';
 import { supabaseAdmin as getAdmin } from '@/lib/db/supabase';
 
+// Limpieza best-effort de una clínica creada a medias: si un insert
+// posterior (clinic_users, clinic_services) falla, borramos la clínica para
+// no dejar un registro huérfano inalcanzable. Si la limpieza también falla,
+// se ignora y se conserva el error original que provocó el 500.
+async function cleanupOrphanedClinic(admin: ReturnType<typeof getAdmin>, clinicId: string): Promise<void> {
+  try {
+    await admin.from('clinics').delete().eq('id', clinicId);
+  } catch {
+    // best-effort: no ocultar el error original con uno de limpieza
+  }
+}
+
 const dayHoursSchema = z.object({ open: z.string(), close: z.string() }).nullable();
 
 const onboardingSchema = z.object({
@@ -39,12 +51,30 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
   }
 
-  const parsed = onboardingSchema.safeParse(await request.json());
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'JSON invalido' }, { status: 400 });
+  }
+
+  const parsed = onboardingSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
   const input = parsed.data;
   const admin = getAdmin();
+
+  // Idempotencia: un usuario solo puede registrar una clinica.
+  const { data: membership } = await admin
+    .from('clinic_users')
+    .select('clinic_id')
+    .eq('user_id', user.id)
+    .limit(1)
+    .maybeSingle();
+  if (membership) {
+    return NextResponse.json({ error: 'Ya tiene una clinica registrada' }, { status: 409 });
+  }
 
   // Slug único: sufijo aleatorio si ya existe.
   let slug = slugify(input.name);
@@ -83,6 +113,7 @@ export async function POST(request: NextRequest) {
     .from('clinic_users')
     .insert({ user_id: user.id, clinic_id: clinic.id, role: 'owner' });
   if (memberError) {
+    await cleanupOrphanedClinic(admin, clinic.id);
     return NextResponse.json({ error: memberError.message }, { status: 500 });
   }
 
@@ -96,6 +127,7 @@ export async function POST(request: NextRequest) {
       active: true,
     })));
   if (servicesError) {
+    await cleanupOrphanedClinic(admin, clinic.id);
     return NextResponse.json({ error: servicesError.message }, { status: 500 });
   }
 

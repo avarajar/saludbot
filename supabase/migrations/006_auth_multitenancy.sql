@@ -40,6 +40,16 @@ drop policy "Service role full access on reminder_logs" on reminder_logs;
 create policy "Service role full access on reminder_logs"
   on reminder_logs for all to service_role using (true) with check (true);
 
+-- ── Número de WhatsApp compartido entre clínicas ────────────────────────────
+-- 001_initial_schema.sql declaró `whatsapp_number text not null unique`, lo
+-- que impide que dos clínicas compartan el mismo número de WhatsApp Business
+-- (TWILIO_WHATSAPP_NUMBER es un único número compartido por todas las
+-- clínicas del onboarding, enrutado luego por `clinic_routing_sessions`).
+-- Se elimina la restricción unique y se conserva un índice no único para que
+-- las búsquedas por número sigan siendo rápidas.
+alter table clinics drop constraint if exists clinics_whatsapp_number_key;
+create index if not exists idx_clinics_whatsapp_number on clinics (whatsapp_number);
+
 create table clinic_users (
   user_id uuid not null references auth.users(id) on delete cascade,
   clinic_id uuid not null references clinics(id) on delete cascade,

@@ -6,25 +6,46 @@ vi.mock('@/lib/auth/supabase-server', () => ({
   createSupabaseServerClient: vi.fn(async () => ({ auth: { getUser: mockGetUser } })),
 }));
 
+type TableConfig = {
+  insertError?: { message: string };
+  maybeSingle?: { data: unknown; error: unknown };
+};
+
+const tableConfig: Record<string, TableConfig> = {};
 const insertedRows: Record<string, unknown[]> = {};
+const deletedIds: Record<string, unknown[]> = {};
+
 vi.mock('@/lib/db/supabase', () => ({
   supabaseAdmin: () => ({
-    from: vi.fn((table: string) => ({
-      insert: vi.fn((row: unknown) => {
-        insertedRows[table] = [...(insertedRows[table] ?? []), ...(Array.isArray(row) ? row : [row])];
-        return {
-          select: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({
-              data: { id: 'clinic-new', slug: 'clinica-x', ...(row as object) },
-              error: null,
+    from: vi.fn((table: string) => {
+      const cfg = tableConfig[table] ?? {};
+      return {
+        insert: vi.fn((row: unknown) => {
+          insertedRows[table] = [...(insertedRows[table] ?? []), ...(Array.isArray(row) ? row : [row])];
+          const error = cfg.insertError ?? null;
+          return {
+            error,
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue(
+                error
+                  ? { data: null, error }
+                  : { data: { id: 'clinic-new', slug: 'clinica-x', ...(row as object) }, error: null }
+              ),
             }),
+          };
+        }),
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        maybeSingle: vi.fn().mockResolvedValue(cfg.maybeSingle ?? { data: null, error: null }),
+        delete: vi.fn(() => ({
+          eq: vi.fn((_col: string, val: unknown) => {
+            deletedIds[table] = [...(deletedIds[table] ?? []), val];
+            return Promise.resolve({ error: null });
           }),
-        };
-      }),
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-    })),
+        })),
+      };
+    }),
   }),
 }));
 
@@ -48,10 +69,19 @@ function jsonRequest(body: unknown): NextRequest {
   });
 }
 
+function rawRequest(body: string): NextRequest {
+  return new NextRequest('https://example.com/api/onboarding', {
+    method: 'POST', body,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
 describe('POST /api/onboarding', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     for (const k of Object.keys(insertedRows)) delete insertedRows[k];
+    for (const k of Object.keys(deletedIds)) delete deletedIds[k];
+    for (const k of Object.keys(tableConfig)) delete tableConfig[k];
   });
 
   it('rechaza sin autenticacion', async () => {
@@ -75,5 +105,31 @@ describe('POST /api/onboarding', () => {
     mockGetUser.mockResolvedValue({ data: { user: { id: 'u1', email: 'dr@x.com' } } });
     const res = await POST(jsonRequest({ name: '' }));
     expect(res.status).toBe(400);
+  });
+
+  it('rechaza JSON malformado con 400', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u1', email: 'dr@x.com' } } });
+    const res = await POST(rawRequest('{not-json'));
+    expect(res.status).toBe(400);
+  });
+
+  it('rechaza con 409 si el usuario ya tiene una clinica', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u1', email: 'dr@x.com' } } });
+    tableConfig['clinic_users'] = { maybeSingle: { data: { clinic_id: 'clinic-existing' }, error: null } };
+    const res = await POST(jsonRequest(validBody));
+    expect(res.status).toBe(409);
+    const json = await res.json();
+    expect(json.error).toBe('Ya tiene una clinica registrada');
+    expect(insertedRows['clinics']).toBeUndefined();
+  });
+
+  it('limpia la clinica creada si falla la insercion de clinic_users', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u1', email: 'dr@x.com' } } });
+    tableConfig['clinic_users'] = { insertError: { message: 'insert failed' } };
+    const res = await POST(jsonRequest(validBody));
+    expect(res.status).toBe(500);
+    const json = await res.json();
+    expect(json.error).toBe('insert failed');
+    expect(deletedIds['clinics']).toEqual(['clinic-new']);
   });
 });
