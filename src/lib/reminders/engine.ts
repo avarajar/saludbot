@@ -6,7 +6,8 @@ import {
 import { es } from 'date-fns/locale';
 import { supabaseAdmin as getSupabase } from '@/lib/db/supabase';
 import { setSession } from '@/lib/db/sessions';
-import { sendMessage } from '@/lib/whatsapp/client';
+import { sendBusinessMessage } from '@/lib/whatsapp/templates';
+import type { BusinessMessageType } from '@/lib/whatsapp/templates';
 import type {
   Appointment,
   Clinic,
@@ -158,7 +159,19 @@ export async function processReminders(): Promise<{
           patient,
         );
 
-        await sendMessage(patient.phone, message, clinic.whatsapp_number);
+        const templateType = ('reminder_' + reminder.type) as BusinessMessageType;
+        await sendBusinessMessage({
+          type: templateType,
+          to: patient.phone,
+          from: clinic.whatsapp_number,
+          variables: {
+            '1': patient.name,
+            '2': clinic.name,
+            '3': format(appointmentDateTime, "EEEE d 'de' MMMM", { locale: es }),
+            '4': format(appointmentDateTime, 'h:mm a', { locale: es }),
+          },
+          fallbackText: message,
+        });
 
         if (reminder.type === '48h' || reminder.type === '24h') {
           // La respuesta "1"/"2" del paciente se interpreta contra esta sesion.
