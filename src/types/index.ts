@@ -130,6 +130,7 @@ export interface ClinicService {
   price: number | null;
   description: string | null;
   active: boolean;
+  follow_up_days: number | null;
 }
 
 // ── Reminder Log ────────────────────────────────────────────────────────────

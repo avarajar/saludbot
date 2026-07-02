@@ -30,8 +30,8 @@ const clinic = {
 } as unknown as Clinic;
 const patient = { id: 'p1', clinic_id: 'c1', name: 'Maria', phone: '+573009876543' } as Patient;
 const services: ClinicService[] = [
-  { id: 's1', clinic_id: 'c1', name: 'Limpieza dental', duration_minutes: 60, price: 90000, description: null, active: true },
-  { id: 's2', clinic_id: 'c1', name: 'Ortodoncia', duration_minutes: 30, price: null, description: null, active: true },
+  { id: 's1', clinic_id: 'c1', name: 'Limpieza dental', duration_minutes: 60, price: 90000, description: null, active: true, follow_up_days: null },
+  { id: 's2', clinic_id: 'c1', name: 'Ortodoncia', duration_minutes: 30, price: null, description: null, active: true, follow_up_days: null },
 ];
 const slots = [
   { date: '2026-07-06', time: '09:00' },

@@ -96,6 +96,7 @@ const mockServices: ClinicService[] = [
     price: 80000,
     description: null,
     active: true,
+    follow_up_days: null,
   },
   {
     id: 'svc-002',
@@ -105,6 +106,7 @@ const mockServices: ClinicService[] = [
     price: 250000,
     description: null,
     active: true,
+    follow_up_days: null,
   },
 ];
 
@@ -316,6 +318,7 @@ describe('handleInfoServices', () => {
         price: 50000,
         description: null,
         active: false,
+        follow_up_days: null,
       },
     ]);
     vi.mocked(generateResponse).mockResolvedValueOnce('Servicios activos');
@@ -391,6 +394,7 @@ describe('handleGreeting', () => {
       price: null,
       description: null,
       active: true,
+      follow_up_days: null,
     }));
 
     vi.mocked(getClinicServices).mockResolvedValueOnce(manyServices);
