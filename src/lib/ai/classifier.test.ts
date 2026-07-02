@@ -226,6 +226,27 @@ describe('classifyIntent', () => {
     expect(callArgs.system).toContain('Blanqueamiento');
   });
 
+  it('incluye el historial de conversacion en el system prompt', async () => {
+    mockCreate.mockResolvedValueOnce(
+      anthropicResponse(JSON.stringify({
+        intent: 'confirm',
+        confidence: 0.9,
+        entities: {},
+      })),
+    );
+
+    await classifyIntent('si, la primera', {
+      clinicName: 'Clinica X',
+      history: [
+        { direction: 'inbound', message: 'quiero una cita' },
+        { direction: 'outbound', message: 'Tenemos: 1. lunes 9am 2. martes 10am' },
+      ],
+    });
+    const call = mockCreate.mock.calls[0][0];
+    expect(call.system).toContain('quiero una cita');
+    expect(call.system).toContain('Historial reciente');
+  });
+
   it('sends the patient message as the user message to the API', async () => {
     mockCreate.mockResolvedValueOnce(
       anthropicResponse(JSON.stringify({

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { supabaseAdmin as getSupabase } from '@/lib/db/supabase';
+import { requireAuthenticatedUser, requireClinicMembership } from '@/lib/auth/authorize';
 
 // ── GET /api/services ────────────────────────────────────────────────────────
 
@@ -22,6 +23,11 @@ export async function GET(request: NextRequest) {
       { status: 400 },
     );
   }
+
+  const auth = await requireAuthenticatedUser();
+  if (!auth.user) return auth.error;
+  const forbidden = await requireClinicMembership(auth.user.id, clinicId);
+  if (forbidden) return forbidden;
 
   const supabase = getSupabase();
 
@@ -68,6 +74,11 @@ export async function POST(request: NextRequest) {
       { status: 400 },
     );
   }
+
+  const auth = await requireAuthenticatedUser();
+  if (!auth.user) return auth.error;
+  const forbidden = await requireClinicMembership(auth.user.id, parsed.data.clinic_id);
+  if (forbidden) return forbidden;
 
   const supabase = getSupabase();
 
@@ -118,7 +129,28 @@ export async function PATCH(request: NextRequest) {
 
   const { id, ...updates } = parsed.data;
 
+  const auth = await requireAuthenticatedUser();
+  if (!auth.user) return auth.error;
+
   const supabase = getSupabase();
+
+  // clinic_id isn't in the request body, so it must be resolved from the
+  // existing row before we can check membership.
+  const { data: existingService, error: fetchError } = await supabase
+    .from('clinic_services')
+    .select('clinic_id')
+    .eq('id', id)
+    .single();
+
+  if (fetchError || !existingService) {
+    return NextResponse.json(
+      { error: 'Service not found' },
+      { status: 404 },
+    );
+  }
+
+  const forbidden = await requireClinicMembership(auth.user.id, existingService.clinic_id);
+  if (forbidden) return forbidden;
 
   const { data: service, error } = await supabase
     .from('clinic_services')
@@ -150,7 +182,26 @@ export async function DELETE(request: NextRequest) {
     );
   }
 
+  const auth = await requireAuthenticatedUser();
+  if (!auth.user) return auth.error;
+
   const supabase = getSupabase();
+
+  const { data: existingService, error: fetchError } = await supabase
+    .from('clinic_services')
+    .select('clinic_id')
+    .eq('id', id)
+    .single();
+
+  if (fetchError || !existingService) {
+    return NextResponse.json(
+      { error: 'Service not found' },
+      { status: 404 },
+    );
+  }
+
+  const forbidden = await requireClinicMembership(auth.user.id, existingService.clinic_id);
+  if (forbidden) return forbidden;
 
   const { error } = await supabase
     .from('clinic_services')

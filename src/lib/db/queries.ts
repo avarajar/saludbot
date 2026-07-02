@@ -1,10 +1,15 @@
+import { TZDate } from '@date-fns/tz';
+import { addDays, format } from 'date-fns';
 import { supabaseAdmin as getAdmin } from './supabase';
 import type {
   Appointment,
   AppointmentStatus,
+  AvailableSlot,
+  BusinessHours,
   Clinic,
   ClinicService,
   Conversation,
+  ConversationIntent,
   Patient,
   ReminderType,
 } from '@/types';
@@ -227,39 +232,82 @@ export async function updateAppointmentStatus(
   return updateAppointment(id, { status } as Partial<Appointment>);
 }
 
+const DAY_KEYS: (keyof BusinessHours)[] = [
+  'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday',
+];
+
+function timeToMinutes(time: string): number {
+  const [h, m] = time.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function minutesToTime(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+const MAX_SLOTS = 10;
+const LOOKAHEAD_DAYS = 7;
+
 /**
- * Returns available time slots for a clinic on a given date (or upcoming dates).
- * Compares against existing appointments to find open windows.
+ * Returns available time slots for a clinic starting on `options.date` (or today),
+ * looking up to 7 days ahead. Respects the clinic's business_hours and timezone,
+ * generates slots of `options.durationMinutes` (default 30), and excludes slots
+ * that overlap with existing scheduled/confirmed appointments or fall in the past.
  */
 export async function getAvailableSlots(
-  clinicId: string,
-  date?: string,
-): Promise<{ date: string; time: string }[]> {
-  const targetDate = date || new Date().toISOString().split('T')[0];
+  clinic: Clinic,
+  options?: { date?: string; durationMinutes?: number },
+): Promise<AvailableSlot[]> {
+  const timezone = clinic.timezone || 'America/Bogota';
+  const duration = options?.durationMinutes ?? 30;
+  const now = TZDate.tz(timezone);
+  const todayStr = format(now, 'yyyy-MM-dd');
+  const startDate = options?.date && options.date >= todayStr ? options.date : todayStr;
+  const endDate = format(addDays(new TZDate(`${startDate}T12:00:00`, timezone), LOOKAHEAD_DAYS), 'yyyy-MM-dd');
 
-  // Fetch booked appointments for the target date
   const { data: booked, error } = await getAdmin()
     .from('appointments')
-    .select('start_time, end_time')
-    .eq('clinic_id', clinicId)
-    .eq('date', targetDate)
-    .in('status', ['scheduled', 'confirmed']);
+    .select('date, start_time, end_time')
+    .eq('clinic_id', clinic.id)
+    .in('status', ['scheduled', 'confirmed'])
+    .gte('date', startDate)
+    .lte('date', endDate);
 
   if (error) {
     throw new Error(`getAvailableSlots failed: ${error.message}`);
   }
 
-  // Generate 30-minute slots from 08:00 to 17:30
-  const slots: { date: string; time: string }[] = [];
-  const bookedTimes = new Set(
-    (booked ?? []).map((a) => a.start_time?.substring(0, 5)),
-  );
+  const bookedByDate = new Map<string, { start: number; end: number }[]>();
+  for (const a of booked ?? []) {
+    const list = bookedByDate.get(a.date) ?? [];
+    list.push({
+      start: timeToMinutes(a.start_time.substring(0, 5)),
+      end: timeToMinutes((a.end_time ?? a.start_time).substring(0, 5)),
+    });
+    bookedByDate.set(a.date, list);
+  }
 
-  for (let hour = 8; hour < 18; hour++) {
-    for (const minutes of ['00', '30']) {
-      const time = `${hour.toString().padStart(2, '0')}:${minutes}`;
-      if (!bookedTimes.has(time)) {
-        slots.push({ date: targetDate, time });
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const slots: AvailableSlot[] = [];
+
+  for (let offset = 0; offset <= LOOKAHEAD_DAYS && slots.length < MAX_SLOTS; offset++) {
+    const day = addDays(new TZDate(`${startDate}T12:00:00`, timezone), offset);
+    const dateStr = format(day, 'yyyy-MM-dd');
+    const hours = clinic.business_hours?.[DAY_KEYS[day.getDay()]];
+    if (!hours) continue;
+
+    const open = timeToMinutes(hours.open);
+    const close = timeToMinutes(hours.close);
+    const taken = bookedByDate.get(dateStr) ?? [];
+
+    for (let start = open; start + duration <= close && slots.length < MAX_SLOTS; start += duration) {
+      const end = start + duration;
+      if (dateStr === todayStr && start <= nowMinutes) continue;
+      const overlaps = taken.some((b) => start < b.end && end > b.start);
+      if (!overlaps) {
+        slots.push({ date: dateStr, time: minutesToTime(start) });
       }
     }
   }
@@ -335,6 +383,72 @@ export async function logConversation(
   }
 
   return conversation;
+}
+
+/**
+ * Inserts an inbound conversation row before classification, relying on the
+ * partial unique index on (whatsapp_message_id) where direction = 'inbound'
+ * to guard against Twilio retry duplicates.
+ *
+ * Returns `duplicate: true` (and a null conversation) when the insert
+ * violates the unique constraint, so the caller can short-circuit without
+ * classifying or responding again.
+ */
+export async function insertInboundConversation(
+  data: Partial<Conversation>,
+): Promise<{ conversation: Conversation | null; duplicate: boolean }> {
+  const { data: conversation, error } = await getAdmin()
+    .from('conversations')
+    .insert({ ...data, direction: 'inbound' })
+    .select('*')
+    .single();
+
+  if (error) {
+    if (error.code === '23505') {
+      return { conversation: null, duplicate: true };
+    }
+    throw new Error(`insertInboundConversation failed: ${error.message}`);
+  }
+  return { conversation, duplicate: false };
+}
+
+/**
+ * Returns the most recent conversation messages between a patient and a
+ * clinic, ordered oldest-first (suitable for feeding into the classifier
+ * as conversation history).
+ */
+export async function getRecentConversations(
+  clinicId: string,
+  patientId: string,
+  limit: number = 6,
+): Promise<Conversation[]> {
+  const { data, error } = await getAdmin()
+    .from('conversations')
+    .select('*')
+    .eq('clinic_id', clinicId)
+    .eq('patient_id', patientId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) {
+    throw new Error(`getRecentConversations failed: ${error.message}`);
+  }
+  return (data ?? []).reverse();
+}
+
+/**
+ * Updates the classified intent on an already-logged inbound conversation row.
+ */
+export async function updateConversationIntent(
+  id: string,
+  intent: ConversationIntent,
+): Promise<void> {
+  const { error } = await getAdmin()
+    .from('conversations')
+    .update({ intent })
+    .eq('id', id);
+  if (error) {
+    throw new Error(`updateConversationIntent failed: ${error.message}`);
+  }
 }
 
 // ---------------------------------------------------------------------------

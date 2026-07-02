@@ -4,6 +4,7 @@ import { TZDate } from '@date-fns/tz';
 import { format, addMinutes } from 'date-fns';
 import { supabaseAdmin as getSupabase } from '@/lib/db/supabase';
 import { createEvent } from '@/lib/calendar/google';
+import { requireAuthenticatedUser, requireClinicMembership } from '@/lib/auth/authorize';
 import type { Clinic, Patient } from '@/types';
 
 const TIMEZONE = 'America/Bogota';
@@ -30,6 +31,11 @@ export async function GET(request: NextRequest) {
       { status: 400 },
     );
   }
+
+  const auth = await requireAuthenticatedUser();
+  if (!auth.user) return auth.error;
+  const forbidden = await requireClinicMembership(auth.user.id, clinicId);
+  if (forbidden) return forbidden;
 
   const supabase = getSupabase();
 
@@ -101,6 +107,11 @@ export async function POST(request: NextRequest) {
     service,
     notes,
   } = parsed.data;
+
+  const auth = await requireAuthenticatedUser();
+  if (!auth.user) return auth.error;
+  const forbidden = await requireClinicMembership(auth.user.id, clinic_id);
+  if (forbidden) return forbidden;
 
   const supabase = getSupabase();
 
@@ -246,7 +257,28 @@ export async function PATCH(request: NextRequest) {
 
   const { id, ...updates } = parsed.data;
 
+  const auth = await requireAuthenticatedUser();
+  if (!auth.user) return auth.error;
+
   const supabase = getSupabase();
+
+  // The clinic_id isn't in the request body, so it must be resolved from the
+  // existing row before we can check membership.
+  const { data: existing, error: fetchError } = await supabase
+    .from('appointments')
+    .select('clinic_id')
+    .eq('id', id)
+    .single();
+
+  if (fetchError || !existing) {
+    return NextResponse.json(
+      { error: 'Appointment not found' },
+      { status: 404 },
+    );
+  }
+
+  const forbidden = await requireClinicMembership(auth.user.id, existing.clinic_id);
+  if (forbidden) return forbidden;
 
   const { data: appointment, error } = await supabase
     .from('appointments')

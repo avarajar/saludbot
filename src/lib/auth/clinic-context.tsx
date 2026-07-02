@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useRouter } from "next/navigation";
 import { createSupabaseBrowserClient } from "./supabase-browser";
 import type { Clinic } from "@/types";
 
@@ -33,6 +34,7 @@ interface ClinicProviderProps {
 }
 
 export function ClinicProvider({ userEmail, children }: ClinicProviderProps) {
+  const router = useRouter();
   const [clinic, setClinic] = useState<Clinic | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,10 +48,9 @@ export function ClinicProvider({ userEmail, children }: ClinicProviderProps) {
       setLoading(true);
       setError(null);
       const supabase = createSupabaseBrowserClient();
-      const { data, error: queryError } = await supabase
-        .from("clinics")
-        .select("*")
-        .eq("owner_email", userEmail)
+      const { data: membership, error: queryError } = await supabase
+        .from("clinic_users")
+        .select("clinic_id, clinics(*)")
         .limit(1)
         .maybeSingle();
 
@@ -58,7 +59,7 @@ export function ClinicProvider({ userEmail, children }: ClinicProviderProps) {
         return;
       }
 
-      setClinic(data);
+      setClinic((membership?.clinics as unknown as Clinic) ?? null);
     } catch {
       setError("Error de conexion. Intente nuevamente.");
     } finally {
@@ -69,6 +70,12 @@ export function ClinicProvider({ userEmail, children }: ClinicProviderProps) {
   useEffect(() => {
     fetchClinic();
   }, [fetchClinic]);
+
+  useEffect(() => {
+    if (!loading && !clinic && !error) {
+      router.replace("/onboarding");
+    }
+  }, [loading, clinic, error, router]);
 
   return (
     <ClinicContext.Provider value={{ clinic, loading, error, userEmail, refetch: fetchClinic }}>

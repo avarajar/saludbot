@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { ConversationIntent } from '@/types';
 import {
-  getClinicByPhone,
   getPatientByPhone,
   createPatient,
+  updatePatient,
   getClinicServices,
+  getRecentConversations,
   logConversation,
+  insertInboundConversation,
+  updateConversationIntent,
 } from '@/lib/db/queries';
+import { resolveClinic, saveRoutingSession } from '@/lib/db/routing';
 import { sendMessage, validateWebhook } from '@/lib/whatsapp/client';
 import { classifyIntent } from '@/lib/ai/classifier';
 import { generateResponse } from '@/lib/ai/responder';
@@ -20,6 +24,8 @@ import {
   handleGreeting,
   handleEscalate,
 } from '@/lib/whatsapp/handlers';
+import { getActiveSession, clearSession } from '@/lib/db/sessions';
+import { continueSession } from '@/lib/whatsapp/flow';
 
 /**
  * POST /api/webhooks/whatsapp
@@ -41,18 +47,45 @@ export async function POST(request: NextRequest) {
     // ── Validate webhook signature ────────────────────────────────────────
     const signature = request.headers.get('x-twilio-signature') || '';
     const webhookUrl = process.env.TWILIO_WEBHOOK_URL || '';
+    const isProduction = process.env.NODE_ENV === 'production';
 
-    if (webhookUrl && !validateWebhook(signature, webhookUrl, params)) {
+    if (isProduction) {
+      // Fail-closed: sin URL configurada o firma invalida, no se procesa.
+      if (!webhookUrl || !signature || !validateWebhook(signature, webhookUrl, params)) {
+        console.error('Twilio signature validation failed');
+        return twimlResponse('');
+      }
+    } else if (webhookUrl && !validateWebhook(signature, webhookUrl, params)) {
       return twimlResponse('');
     }
 
-    // ── Look up clinic by Twilio number ───────────────────────────────────
-    const clinic = await getClinicByPhone(to);
+    // ── Resolve clinic for the (possibly shared) Twilio number ──────────────
+    const resolution = await resolveClinic(to, from, body);
 
-    if (!clinic) {
-      console.error(`No clinic found for WhatsApp number: ${to}`);
+    if (resolution.status === 'none') {
+      console.error(`No clinic resolved for message to ${to} from ${from}`);
       return twimlResponse('');
     }
+
+    if (resolution.status === 'ambiguous') {
+      await saveRoutingSession(from, resolution.candidates.map((c) => c.id));
+
+      if (resolution.candidates.length > 5) {
+        // Demasiadas clinicas para listar con numeros: se le pide el nombre
+        // en vez de dejarlo sin respuesta. popRoutingChoice ya sabe resolver
+        // por nombre/slug contra la sesion de routing guardada arriba.
+        return twimlResponse(
+          'Hola, este numero atiende varias clinicas. Por favor escribanos el nombre de la clinica que busca.',
+        );
+      }
+
+      const list = resolution.candidates.map((c, i) => `${i + 1}. ${c.name}`).join('\n');
+      return twimlResponse(
+        `Hola, ¿con cual clinica desea comunicarse?\n${list}\nResponda con el numero.`,
+      );
+    }
+
+    const clinic = resolution.clinic;
 
     // ── Look up or create patient ─────────────────────────────────────────
     let patient = await getPatientByPhone(clinic.id, from);
@@ -68,28 +101,64 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // ── Classify intent ───────────────────────────────────────────────────
+    // ── Log inbound conversation (idempotent on whatsapp_message_id) ───────
+    const { conversation: inbound, duplicate } = await insertInboundConversation({
+      clinic_id: clinic.id,
+      patient_id: patient.id,
+      whatsapp_message_id: messageSid,
+      message: body,
+      intent: null,
+    });
+
+    if (duplicate) {
+      // Already processed this MessageSid (Twilio retry) — do not
+      // reclassify or respond again.
+      return twimlResponse('');
+    }
+
+    // ── Sesion activa: interpretar contra el estado pendiente ──────────────
     const services = await getClinicServices(clinic.id);
+    const session = await getActiveSession(clinic.id, patient.id);
+
+    if (session && session.state !== 'idle') {
+      const result = await continueSession({ session, message: body, clinic, patient, services });
+      if (result.handled && result.reply) {
+        const sid = await sendMessage(from, result.reply, clinic.whatsapp_number);
+        await logConversation({
+          clinic_id: clinic.id,
+          patient_id: patient.id,
+          whatsapp_message_id: sid,
+          direction: 'outbound',
+          message: result.reply,
+          intent: null,
+        });
+        return twimlResponse('');
+      }
+      // La respuesta no corresponde al flujo pendiente: abandonarlo.
+      await clearSession(clinic.id, patient.id);
+    }
+
+    // ── Clasificar con historial ────────────────────────────────────────────
+    const history = await getRecentConversations(clinic.id, patient.id, 6);
     const classification = await classifyIntent(body, {
       patientName: patient.name || undefined,
       clinicName: clinic.name,
       clinicServices: services.map((s) => s.name),
+      history: history
+        .filter((h) => h.id !== inbound?.id)
+        .map((h) => ({ direction: h.direction, message: h.message })),
     });
 
     // Update patient name if extracted and not yet set
     if (classification.entities.patient_name && !patient.name) {
-      patient.name = classification.entities.patient_name;
+      patient = await updatePatient(patient.id, {
+        name: classification.entities.patient_name,
+      });
     }
 
-    // ── Log inbound conversation ──────────────────────────────────────────
-    await logConversation({
-      clinic_id: clinic.id,
-      patient_id: patient.id,
-      whatsapp_message_id: messageSid,
-      direction: 'inbound',
-      message: body,
-      intent: classification.intent,
-    });
+    if (inbound) {
+      await updateConversationIntent(inbound.id, classification.intent);
+    }
 
     // ── Route to handler ──────────────────────────────────────────────────
     let responseMessage: string;
@@ -161,13 +230,13 @@ export async function POST(request: NextRequest) {
     }
 
     // ── Send response via Twilio ──────────────────────────────────────────
-    await sendMessage(from, responseMessage);
+    const outboundSid = await sendMessage(from, responseMessage, clinic.whatsapp_number);
 
     // ── Log outbound conversation ─────────────────────────────────────────
     await logConversation({
       clinic_id: clinic.id,
       patient_id: patient.id,
-      whatsapp_message_id: '',
+      whatsapp_message_id: outboundSid,
       direction: 'outbound',
       message: responseMessage,
       intent: classification.intent,

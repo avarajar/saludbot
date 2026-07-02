@@ -5,6 +5,9 @@ import {
 } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { supabaseAdmin as getSupabase } from '@/lib/db/supabase';
+import { getActiveSession, setSession } from '@/lib/db/sessions';
+import { sendBusinessMessage } from '@/lib/whatsapp/templates';
+import type { BusinessMessageType } from '@/lib/whatsapp/templates';
 import type {
   Appointment,
   Clinic,
@@ -13,20 +16,6 @@ import type {
 } from '@/types';
 
 const TIMEZONE = 'America/Bogota';
-
-async function sendWhatsAppMessage(to: string, body: string): Promise<void> {
-  const twilio = await import('twilio');
-  const client = twilio.default(
-    process.env.TWILIO_ACCOUNT_SID!,
-    process.env.TWILIO_AUTH_TOKEN!,
-  );
-
-  await client.messages.create({
-    from: `whatsapp:${process.env.TWILIO_WHATSAPP_NUMBER!}`,
-    to: `whatsapp:${to}`,
-    body,
-  });
-}
 
 /**
  * Generates a reminder message in Colombian Spanish using "usted" form.
@@ -149,6 +138,19 @@ export async function processReminders(): Promise<{
     }
 
     for (const reminder of remindersToSend) {
+      // Atomic claim: only proceed if the flag was still false. This prevents
+      // duplicate sends when the cron overlaps with a concurrent run.
+      const { data: claimed, error: claimError } = await supabase
+        .from('appointments')
+        .update({ [reminder.flag]: true })
+        .eq('id', appointment.id)
+        .eq(reminder.flag, false)
+        .select('id');
+
+      if (claimError || !claimed || claimed.length === 0) {
+        continue;
+      }
+
       try {
         const message = generateReminderMessage(
           reminder.type,
@@ -157,13 +159,47 @@ export async function processReminders(): Promise<{
           patient,
         );
 
-        await sendWhatsAppMessage(patient.phone, message);
+        const templateType = ('reminder_' + reminder.type) as BusinessMessageType;
+        await sendBusinessMessage({
+          type: templateType,
+          to: patient.phone,
+          from: clinic.whatsapp_number,
+          variables: {
+            '1': patient.name,
+            '2': clinic.name,
+            '3': format(appointmentDateTime, "EEEE d 'de' MMMM", { locale: es }),
+            '4': format(appointmentDateTime, 'h:mm a', { locale: es }),
+          },
+          fallbackText: message,
+        });
 
-        // Mark reminder as sent on the appointment
-        await supabase
-          .from('appointments')
-          .update({ [reminder.flag]: true })
-          .eq('id', appointment.id);
+        if (reminder.type === '48h' || reminder.type === '24h') {
+          // La respuesta "1"/"2" del paciente se interpreta contra esta sesion.
+          // Se envuelve en su propio try/catch: el recordatorio YA se envio,
+          // asi que un fallo aqui no debe revertir el claim ni marcar el
+          // recordatorio como fallido (eso duplicaria el envio en el proximo
+          // cron run).
+          try {
+            // No pisar una sesion activa (p.ej. "awaiting_slot" de un
+            // agendamiento en curso): si existe y no expiro, se deja intacta
+            // para no perder el flujo en el que ya estaba el paciente.
+            const activeSession = await getActiveSession(appointment.clinic_id, appointment.patient_id);
+            if (!activeSession || activeSession.state === 'idle') {
+              await setSession(
+                appointment.clinic_id,
+                appointment.patient_id,
+                'awaiting_reminder_reply',
+                { appointment_id: appointment.id },
+                24 * 60,
+              );
+            }
+          } catch (sessionErr) {
+            console.error(
+              `Failed to set awaiting_reminder_reply session for appointment ${appointment.id}:`,
+              sessionErr,
+            );
+          }
+        }
 
         // Log the reminder
         await supabase.from('reminder_logs').insert({
@@ -189,6 +225,23 @@ export async function processReminders(): Promise<{
           `Failed to send ${reminder.type} reminder for appointment ${appointment.id}:`,
           err,
         );
+
+        // Revert the claim so the next cron run retries the send.
+        const { error: revertError } = await supabase
+          .from('appointments')
+          .update({ [reminder.flag]: false })
+          .eq('id', appointment.id);
+
+        if (revertError) {
+          // The flag stays stranded as `true`, so the next cron run will
+          // skip this reminder entirely (it looks already-sent) even though
+          // the patient never received it. This needs a loud, distinct log
+          // so it can be caught and fixed manually.
+          console.error(
+            `CRITICAL: failed to revert ${String(reminder.flag)} for appointment ${appointment.id} after send failure — flag stranded true:`,
+            revertError,
+          );
+        }
 
         // Log the failed attempt
         await supabase.from('reminder_logs').insert({

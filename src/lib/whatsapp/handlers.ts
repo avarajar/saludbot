@@ -1,13 +1,12 @@
 import type { Clinic, Patient, ClinicService, Appointment, BusinessHours } from '@/types';
 import {
   getClinicServices,
-  getAvailableSlots,
   getUpcomingAppointment,
-  createAppointment,
   updateAppointmentStatus,
 } from '@/lib/db/queries';
 import { sendMessage } from '@/lib/whatsapp/client';
 import { generateResponse } from '@/lib/ai/responder';
+import { startScheduleFlow, startRescheduleFlow } from './flow';
 
 // ── Schedule ────────────────────────────────────────────────────────────────
 
@@ -18,29 +17,7 @@ export async function handleSchedule(
   services: ClinicService[],
 ): Promise<string> {
   try {
-    const preferredDate = entities.date;
-    const preferredService = entities.service_type;
-
-    const availableSlots = await getAvailableSlots(
-      clinic.id,
-      preferredDate || undefined,
-    );
-
-    const slotStrings = availableSlots.map(
-      (slot) => `${slot.date} a las ${slot.time}`,
-    );
-
-    return await generateResponse('schedule', {
-      clinicName: clinic.name,
-      patientName: patient.name,
-      availableSlots: slotStrings.slice(0, 5), // Max 5 options for WhatsApp readability
-      services: services.map((s) =>
-        s.price ? `${s.name} ($${s.price.toLocaleString('es-CO')})` : s.name,
-      ),
-      appointmentDetails: preferredService
-        ? { service: preferredService }
-        : undefined,
-    });
+    return await startScheduleFlow(clinic, patient, entities, services);
   } catch (error) {
     console.error('Error handling schedule:', error);
     return `Con mucho gusto le ayudo a agendar su cita en ${clinic.name}. En este momento no puedo consultar la disponibilidad, por favor intentelo de nuevo en unos minutos.`;
@@ -125,39 +102,7 @@ export async function handleReschedule(
   entities: Record<string, string>,
 ): Promise<string> {
   try {
-    const appointment = await getUpcomingAppointment(clinic.id, patient.id);
-
-    if (!appointment) {
-      return await generateResponse('other', {
-        clinicName: clinic.name,
-        patientName: patient.name,
-      });
-    }
-
-    // Mark the current appointment as rescheduled
-    await updateAppointmentStatus(appointment.id, 'rescheduled');
-
-    const preferredDate = entities.date;
-    const availableSlots = await getAvailableSlots(
-      clinic.id,
-      preferredDate || undefined,
-    );
-
-    const slotStrings = availableSlots.map(
-      (slot) => `${slot.date} a las ${slot.time}`,
-    );
-
-    return await generateResponse('reschedule', {
-      clinicName: clinic.name,
-      patientName: patient.name,
-      availableSlots: slotStrings.slice(0, 5),
-      appointmentDetails: {
-        date: appointment.date,
-        time: appointment.start_time,
-        service: appointment.service,
-        status: 'rescheduled',
-      },
-    });
+    return await startRescheduleFlow(clinic, patient, entities);
   } catch (error) {
     console.error('Error handling reschedule:', error);
     return `Que pena, en este momento no puedo consultar los horarios disponibles. Por favor intentelo de nuevo en unos minutos o comuniquese con ${clinic.name}.`;
@@ -275,7 +220,7 @@ export async function handleEscalate(
     // Notify the clinic owner via WhatsApp
     const ownerNotification = `Atencion ${clinic.owner_name}: El paciente ${patient.name || patient.phone} solicita atencion directa.\n\nMensaje: "${message}"\n\nTelefono: ${patient.phone}`;
 
-    await sendMessage(clinic.phone, ownerNotification);
+    await sendMessage(clinic.phone, ownerNotification, clinic.whatsapp_number);
 
     return await generateResponse('escalate', {
       clinicName: clinic.name,
