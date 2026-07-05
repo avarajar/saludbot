@@ -2,11 +2,11 @@
 
 import Button from "@/components/ui/Button";
 import BusinessHoursEditor from "@/components/clinic/BusinessHoursEditor";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useClinic } from "@/lib/auth/clinic-context";
 import { COUNTRIES, getCountry } from "@/lib/clinics/countries";
 import { SPECIALTIES, DEFAULT_BUSINESS_HOURS } from "@/lib/clinics/templates";
-import type { BusinessHours } from "@/types";
+import type { BusinessHours, Clinic } from "@/types";
 
 interface ClinicFormData {
   name: string;
@@ -39,9 +39,14 @@ export default function SettingsPage() {
   const [savingHours, setSavingHours] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const loadedClinicId = useRef<string | null>(null);
 
+  // Solo inicializa los formularios cuando carga una clínica DISTINTA;
+  // un refetch tras guardar no debe pisar ediciones sin guardar de la
+  // otra tarjeta.
   useEffect(() => {
-    if (clinic) {
+    if (clinic && clinic.id !== loadedClinicId.current) {
+      loadedClinicId.current = clinic.id;
       setForm({
         name: clinic.name, phone: clinic.phone,
         address: clinic.address, city: clinic.city,
@@ -65,7 +70,10 @@ export default function SettingsPage() {
     setForm((prev) => ({ ...prev, country: c.code, timezone: c.timezone }));
   };
 
-  const patchClinic = async (body: Record<string, unknown>, doneMessage: string) => {
+  const patchClinic = async (
+    body: Record<string, unknown>,
+    doneMessage: string,
+  ): Promise<Clinic> => {
     setError(null);
     setSuccess(null);
     const res = await fetch("/api/clinics", {
@@ -77,17 +85,33 @@ export default function SettingsPage() {
       const data = await res.json();
       throw new Error(data.error || "Error al guardar los cambios");
     }
-    await res.json();
+    const { clinic: updated } = (await res.json()) as { clinic: Clinic };
+    // Mantiene frescos el contexto y la tarjeta de solo lectura (los
+    // botones Descartar trabajan sobre datos actualizados del contexto).
     await refetch();
     setSuccess(doneMessage);
     setTimeout(() => setSuccess(null), 3000);
+    return updated;
   };
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
-      await patchClinic({ ...form }, "Los cambios se guardaron correctamente.");
+      const updated = await patchClinic(
+        { ...form },
+        "Los cambios se guardaron correctamente.",
+      );
+      // Sincroniza la tarjeta guardada con la respuesta del servidor para
+      // reflejar valores derivados (moneda, locale, timezone).
+      setForm({
+        name: updated.name, phone: updated.phone,
+        address: updated.address, city: updated.city,
+        specialty: updated.specialty, country: updated.country,
+        whatsapp_number: updated.whatsapp_number,
+        timezone: updated.timezone,
+        owner_name: updated.owner_name, owner_email: updated.owner_email,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al guardar los cambios");
     } finally {
@@ -98,7 +122,11 @@ export default function SettingsPage() {
   const handleSaveHours = async () => {
     setSavingHours(true);
     try {
-      await patchClinic({ business_hours: hours }, "El horario se guardó correctamente.");
+      const updated = await patchClinic(
+        { business_hours: hours },
+        "El horario se guardó correctamente.",
+      );
+      setHours(updated.business_hours ?? hours);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al guardar el horario");
     } finally {
@@ -106,7 +134,9 @@ export default function SettingsPage() {
     }
   };
 
-  if (loading) {
+  // Solo bloquea con el spinner la carga inicial; un refetch tras guardar
+  // no debe reemplazar la página ya cargada.
+  if (loading && !clinic) {
     return (
       <div className="space-y-6">
         <div>
