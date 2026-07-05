@@ -248,6 +248,8 @@ export default function OnboardingPage() {
                 <div className="flex items-center gap-1">
                   <input
                     type="number"
+                    min={10}
+                    max={480}
                     className="w-20 rounded-lg border border-gray-300 px-2 py-2.5 text-sm text-gray-700 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     title="Duración (minutos)"
                     value={s.duration_minutes}
@@ -276,7 +278,19 @@ export default function OnboardingPage() {
             </button>
             <div className="flex gap-2 pt-1">
               <Button variant="secondary" onClick={() => setStep(2)}>Atrás</Button>
-              <Button onClick={() => setStep(4)} disabled={services.length === 0 || services.some((s) => !s.name)}>
+              <Button
+                onClick={() => setStep(4)}
+                disabled={
+                  services.length === 0 ||
+                  services.some(
+                    (s) =>
+                      s.name.trim().length < 2 ||
+                      !Number.isInteger(s.duration_minutes) ||
+                      s.duration_minutes < 10 ||
+                      s.duration_minutes > 480,
+                  )
+                }
+              >
                 Continuar
               </Button>
             </div>

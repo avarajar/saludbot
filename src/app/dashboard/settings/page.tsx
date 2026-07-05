@@ -83,6 +83,17 @@ export default function SettingsPage() {
     });
     if (!res.ok) {
       const data = await res.json();
+      if (res.status === 400) {
+        const fieldErrors = data.details?.fieldErrors as
+          | Record<string, string[] | undefined>
+          | undefined;
+        if (fieldErrors?.business_hours?.length) {
+          throw new Error(
+            "Revise el horario: la hora de apertura debe ser anterior a la de cierre.",
+          );
+        }
+        throw new Error("Datos inválidos. Revise los campos e intente de nuevo.");
+      }
       throw new Error(data.error || "Error al guardar los cambios");
     }
     const { clinic: updated } = (await res.json()) as { clinic: Clinic };
