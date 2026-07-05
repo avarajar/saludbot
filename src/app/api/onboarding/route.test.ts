@@ -53,6 +53,7 @@ import { POST } from './route';
 
 const validBody = {
   name: 'Clinica X', phone: '+573001111111', address: 'Calle 1', city: 'Bogota',
+  country: 'CO',
   specialty: 'dental',
   business_hours: {
     monday: { open: '08:00', close: '18:00' }, tuesday: { open: '08:00', close: '18:00' },
@@ -131,5 +132,36 @@ describe('POST /api/onboarding', () => {
     const json = await res.json();
     expect(json.error).toBe('insert failed');
     expect(deletedIds['clinics']).toEqual(['clinic-new']);
+  });
+
+  it('rechaza un pais no soportado', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u1', email: 'dr@x.com' } } });
+    const res = await POST(jsonRequest({ ...validBody, country: 'XX' }));
+    expect(res.status).toBe(400);
+  });
+
+  it('rechaza si falta el pais', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u1', email: 'dr@x.com' } } });
+    const { country: _country, ...noCountry } = validBody;
+    const res = await POST(jsonRequest(noCountry));
+    expect(res.status).toBe(400);
+  });
+
+  it('deriva moneda, locale y timezone del pais en el servidor', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u1', email: 'dr@x.com' } } });
+    const res = await POST(jsonRequest({ ...validBody, country: 'MX' }));
+    expect(res.status).toBe(201);
+    expect(insertedRows['clinics']?.[0]).toMatchObject({
+      country: 'MX', currency: 'MXN', locale: 'es-MX', timezone: 'America/Mexico_City',
+    });
+  });
+
+  it('rechaza horario con apertura posterior al cierre', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: { id: 'u1', email: 'dr@x.com' } } });
+    const res = await POST(jsonRequest({
+      ...validBody,
+      business_hours: { ...validBody.business_hours, monday: { open: '18:00', close: '08:00' } },
+    }));
+    expect(res.status).toBe(400);
   });
 });
