@@ -219,4 +219,69 @@ describe('PATCH /api/clinics', () => {
     expect(response.status).toBe(200);
     expect(data.clinic.name).toBe('Nuevo nombre');
   });
+
+  it('returns 400 for an unsupported country', async () => {
+    const response = await PATCH(makePatchRequest({ id: MEMBER_CLINIC_ID, country: 'XX' }));
+    expect(response.status).toBe(400);
+  });
+
+  it('returns 400 when business_hours has open after close', async () => {
+    const response = await PATCH(makePatchRequest({
+      id: MEMBER_CLINIC_ID,
+      business_hours: {
+        monday: { open: '18:00', close: '08:00' }, tuesday: null, wednesday: null,
+        thursday: null, friday: null, saturday: null, sunday: null,
+      },
+    }));
+    expect(response.status).toBe(400);
+  });
+
+  it('derives currency, locale and timezone when country changes', async () => {
+    const membershipChain = createChain({ data: { clinic_id: MEMBER_CLINIC_ID }, error: null });
+    const updateChain = createChain({ data: { id: MEMBER_CLINIC_ID, country: 'MX' }, error: null });
+    mockSupabaseFrom.mockImplementation((table: string) => {
+      if (table === 'clinic_users') return membershipChain;
+      if (table === 'clinics') return updateChain;
+      return createChain();
+    });
+
+    const response = await PATCH(makePatchRequest({ id: MEMBER_CLINIC_ID, country: 'MX' }));
+    expect(response.status).toBe(200);
+    const updateSpy = updateChain['update'] as ReturnType<typeof vi.fn>;
+    expect(updateSpy).toHaveBeenCalledWith(expect.objectContaining({
+      country: 'MX', currency: 'MXN', locale: 'es-MX', timezone: 'America/Mexico_City',
+    }));
+  });
+
+  it('keeps an explicit timezone over the country default', async () => {
+    const membershipChain = createChain({ data: { clinic_id: MEMBER_CLINIC_ID }, error: null });
+    const updateChain = createChain({ data: { id: MEMBER_CLINIC_ID }, error: null });
+    mockSupabaseFrom.mockImplementation((table: string) => {
+      if (table === 'clinic_users') return membershipChain;
+      if (table === 'clinics') return updateChain;
+      return createChain();
+    });
+
+    const response = await PATCH(makePatchRequest({
+      id: MEMBER_CLINIC_ID, country: 'MX', timezone: 'America/Bogota',
+    }));
+    expect(response.status).toBe(200);
+    const updateSpy = updateChain['update'] as ReturnType<typeof vi.fn>;
+    expect(updateSpy).toHaveBeenCalledWith(expect.objectContaining({
+      country: 'MX', currency: 'MXN', locale: 'es-MX', timezone: 'America/Bogota',
+    }));
+  });
+
+  it('accepts a specialty update', async () => {
+    const membershipChain = createChain({ data: { clinic_id: MEMBER_CLINIC_ID }, error: null });
+    const updateChain = createChain({ data: { id: MEMBER_CLINIC_ID, specialty: 'veterinary' }, error: null });
+    mockSupabaseFrom.mockImplementation((table: string) => {
+      if (table === 'clinic_users') return membershipChain;
+      if (table === 'clinics') return updateChain;
+      return createChain();
+    });
+
+    const response = await PATCH(makePatchRequest({ id: MEMBER_CLINIC_ID, specialty: 'veterinary' }));
+    expect(response.status).toBe(200);
+  });
 });

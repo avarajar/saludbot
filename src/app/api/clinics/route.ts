@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { supabaseAdmin as getSupabase } from '@/lib/db/supabase';
 import { requireAuthenticatedUser, requireClinicMembership } from '@/lib/auth/authorize';
+import { getCountry } from '@/lib/clinics/countries';
+import { businessHoursSchema, countryCodeSchema } from '@/lib/clinics/schemas';
 import type { ClinicSpecialty, PackageType } from '@/types';
 
 // ── GET /api/clinics ───────────────────────────────────────────────────────
@@ -169,6 +171,9 @@ const updateClinicSchema = z.object({
   timezone: z.string().optional(),
   owner_name: z.string().min(1).optional(),
   owner_email: z.string().email().optional(),
+  specialty: z.enum(CLINIC_SPECIALTIES).optional(),
+  country: countryCodeSchema.optional(),
+  business_hours: businessHoursSchema.optional(),
 });
 
 /**
@@ -185,7 +190,19 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
-  const { id, ...updates } = parsed.data;
+  const { id, country, ...rest } = parsed.data;
+  const updates: Record<string, unknown> = { ...rest };
+  if (country) {
+    // El país es la fuente de verdad de moneda/locale; el timezone explícito
+    // del request gana sobre el default del país.
+    const countryInfo = getCountry(country);
+    updates.country = countryInfo.code;
+    updates.currency = countryInfo.currency;
+    updates.locale = countryInfo.locale;
+    if (parsed.data.timezone === undefined) {
+      updates.timezone = countryInfo.timezone;
+    }
+  }
 
   const auth = await requireAuthenticatedUser();
   if (!auth.user) return auth.error;
