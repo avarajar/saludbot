@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/lib/auth/supabase-server';
 import { supabaseAdmin as getAdmin } from '@/lib/db/supabase';
+import { getCountry } from '@/lib/clinics/countries';
+import { businessHoursSchema, countryCodeSchema } from '@/lib/clinics/schemas';
 
 // Limpieza best-effort de una clínica creada a medias: si un insert
 // posterior (clinic_users, clinic_services) falla, borramos la clínica para
@@ -15,19 +17,14 @@ async function cleanupOrphanedClinic(admin: ReturnType<typeof getAdmin>, clinicI
   }
 }
 
-const dayHoursSchema = z.object({ open: z.string(), close: z.string() }).nullable();
-
 const onboardingSchema = z.object({
   name: z.string().min(2).max(120),
   phone: z.string().min(7),
   address: z.string().min(3),
   city: z.string().min(2),
+  country: countryCodeSchema,
   specialty: z.enum(['dental', 'veterinary', 'aesthetic', 'psychology', 'dermatology', 'physiotherapy', 'other']),
-  business_hours: z.object({
-    monday: dayHoursSchema, tuesday: dayHoursSchema, wednesday: dayHoursSchema,
-    thursday: dayHoursSchema, friday: dayHoursSchema, saturday: dayHoursSchema,
-    sunday: dayHoursSchema,
-  }),
+  business_hours: businessHoursSchema,
   services: z.array(z.object({
     name: z.string().min(2),
     duration_minutes: z.number().int().min(10).max(480),
@@ -85,6 +82,7 @@ export async function POST(request: NextRequest) {
   }
 
   const sharedNumber = (process.env.TWILIO_WHATSAPP_NUMBER ?? '').replace(/^whatsapp:/, '');
+  const countryInfo = getCountry(input.country);
 
   const { data: clinic, error: clinicError } = await admin
     .from('clinics')
@@ -94,6 +92,10 @@ export async function POST(request: NextRequest) {
       phone: input.phone,
       address: input.address,
       city: input.city,
+      country: countryInfo.code,
+      currency: countryInfo.currency,
+      locale: countryInfo.locale,
+      timezone: countryInfo.timezone,
       specialty: input.specialty,
       business_hours: input.business_hours,
       whatsapp_number: sharedNumber,
