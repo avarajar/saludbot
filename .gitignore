@@ -53,3 +53,6 @@ next-env.d.ts
 
 # claude
 .claude/
+
+# landing: applications with contact data (never publish)
+/landing/_privado/

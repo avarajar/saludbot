@@ -1,0 +1,351 @@
+// SaludBot landing — motion, hero chat, FAQ, pilot slots and application form.
+// Plain JS, no build step: served as-is by GitHub Pages and by server.mjs locally.
+(() => {
+  'use strict';
+
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+  const media = (q) => window.matchMedia(q).matches;
+
+  // Kept in sync by hand with src/lib/clinics/templates.ts and countries.ts
+  const SPECIALTIES = ['Odontología', 'Veterinaria', 'Estética', 'Psicología', 'Dermatología', 'Fisioterapia', 'Otra'];
+  const COUNTRIES = ['Colombia', 'México', 'Perú', 'Ecuador', 'Chile', 'Argentina', 'Venezuela', 'Panamá', 'Costa Rica', 'Rep. Dominicana'];
+
+  const API_URL = 'api/postulaciones';
+  const SLOTS_URL = 'data/cupos.json';
+  const MAX_LOGO_BYTES = 5 * 1024 * 1024;
+  const LOGO_SIZE = 256;
+
+  /* ---------------- Motion (port of the handoff's anim-editorial.js) ---------------- */
+  function setupMotion() {
+    const reduced = media('(prefers-reduced-motion: reduce)');
+    const desktop = media('(min-width: 768px)');
+    const finePointer = media('(pointer: fine)');
+
+    $$('[data-stagger]').forEach((group) => {
+      const step = Number(group.dataset.stagger) || 90;
+      Array.from(group.children).forEach((child, i) => child.style.setProperty('--d', `${i * step}ms`));
+    });
+    const io = new IntersectionObserver((entries) => entries.forEach((entry) => {
+      if (!entry.isIntersecting) return;
+      entry.target.classList.add('is-in');
+      io.unobserve(entry.target);
+    }), { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
+    $$('[data-reveal], [data-stagger], [data-grow]').forEach((el) => io.observe(el));
+
+    const nav = $('[data-nav]');
+    const bar = $('[data-progress]');
+    const onScroll = () => {
+      const y = window.scrollY;
+      if (nav) {
+        nav.style.height = y > 40 ? '52px' : '64px';
+        nav.style.boxShadow = y > 40 ? '0 10px 30px -20px rgba(20,26,46,.35)' : 'none';
+      }
+      if (bar) {
+        const h = document.documentElement.scrollHeight - window.innerHeight;
+        bar.style.transform = `scaleX(${h ? y / h : 0})`;
+      }
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+
+    if (reduced) return;
+
+    if (desktop) {
+      const layers = $$('[data-parallax]');
+      let raf = 0;
+      const onParallax = () => {
+        if (raf) return;
+        raf = requestAnimationFrame(() => {
+          raf = 0;
+          const y = window.scrollY;
+          layers.forEach((el) => { el.style.transform = `translate3d(0,${(y * Number(el.dataset.parallax)).toFixed(1)}px,0)`; });
+        });
+      };
+      window.addEventListener('scroll', onParallax, { passive: true });
+      onParallax();
+    }
+
+    if (finePointer) {
+      $$('[data-magnet]').forEach((el) => {
+        el.addEventListener('mousemove', (e) => {
+          const r = el.getBoundingClientRect();
+          el.style.transform = `translate(${(e.clientX - r.left - r.width / 2) * 0.18}px,${(e.clientY - r.top - r.height / 2) * 0.3}px)`;
+        });
+        el.addEventListener('mouseleave', () => { el.style.transform = ''; });
+      });
+      const tilt = $('[data-tilt]');
+      if (tilt && desktop) {
+        tilt.style.transition = 'transform .6s cubic-bezier(.16,1,.3,1)';
+        window.addEventListener('mousemove', (e) => {
+          const x = e.clientX / window.innerWidth - 0.5;
+          const y = e.clientY / window.innerHeight - 0.5;
+          tilt.style.transform = `perspective(1400px) rotateY(${x * 6}deg) rotateX(${-y * 6}deg)`;
+        });
+      }
+    }
+  }
+
+  /* ---------------- Hero chat loop ---------------- */
+  const CHAT = [
+    { me: true, text: 'Hola, necesito una cita para limpieza dental' },
+    { me: false, text: 'Con gusto. Para limpieza (60 min) tengo jueves 10:00 a. m., viernes 9:00 a. m. o viernes 3:00 p. m. ¿Cuál prefiere?' },
+    { me: true, text: 'El viernes a las 9' },
+    { me: false, text: 'Listo. Su cita queda para el viernes a las 9:00 a. m. Le recordaré antes.' },
+    { me: false, text: 'Recordatorio: su limpieza es mañana a las 9:00 a. m. Responda 1 para confirmar o 2 para reagendar.' },
+    { me: true, text: '1' },
+    { me: false, text: 'Confirmada. La esperamos mañana a las 9:00 a. m.' },
+  ];
+  const PAUSE_TICKS = 3;
+
+  function setupChat() {
+    const chat = $('[data-chat]');
+    if (!chat) return;
+    const row = $('[data-row-9]');
+    const pill = $('[data-pill]');
+    const count = $('[data-confirmed]');
+    let step = 0;
+
+    const render = () => {
+      const shown = Math.min(step, CHAT.length);
+      const next = CHAT[shown];
+      chat.replaceChildren(...CHAT.slice(0, shown).map((m) => {
+        const wrap = document.createElement('div');
+        wrap.className = m.me ? 'msg me' : 'msg';
+        const p = document.createElement('p');
+        p.textContent = m.text;
+        wrap.append(p);
+        return wrap;
+      }));
+      // Only the newest bubble animates in
+      Array.from(chat.children).slice(0, -1).forEach((el) => { el.style.animation = 'none'; });
+      if (step > 0 && next && !next.me) {
+        const typing = document.createElement('div');
+        typing.className = 'msg';
+        typing.setAttribute('aria-label', 'Escribiendo');
+        typing.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
+        chat.append(typing);
+      }
+      const confirmed = shown >= CHAT.length - 1;
+      row.classList.toggle('confirmed', confirmed);
+      pill.textContent = confirmed ? 'Confirmada' : 'Pendiente';
+      count.textContent = confirmed ? '3' : '2';
+      return next && !next.me ? 2100 : 1400;
+    };
+
+    const tick = () => {
+      step = (step + 1) % (CHAT.length + PAUSE_TICKS);
+      setTimeout(tick, render());
+    };
+    setTimeout(tick, render());
+  }
+
+  /* ---------------- FAQ accordion (one open at a time) ---------------- */
+  function setupFaq() {
+    const items = $$('.faq-item');
+    items.forEach((item) => {
+      $('.faq-q', item).addEventListener('click', () => {
+        const willOpen = !item.classList.contains('open');
+        items.forEach((other) => {
+          other.classList.remove('open');
+          $('.faq-q', other).setAttribute('aria-expanded', 'false');
+        });
+        if (willOpen) {
+          item.classList.add('open');
+          $('.faq-q', item).setAttribute('aria-expanded', 'true');
+        }
+      });
+    });
+  }
+
+  /* ---------------- Pilot slots (loaded from data/cupos.json) ---------------- */
+  let slotState = { total: 10, cupos: [] };
+
+  async function loadSlots() {
+    try {
+      const res = await fetch(SLOTS_URL, { cache: 'no-store' });
+      if (res.ok) slotState = await res.json();
+    } catch {
+      // Keep the empty default: every slot shows as available
+    }
+    renderSlots();
+  }
+
+  function renderSlots() {
+    const grid = $('[data-slots]');
+    const note = $('[data-slots-note]');
+    if (!grid) return;
+    const { total, cupos } = slotState;
+    const taken = cupos.length;
+    const approved = cupos.filter((c) => c.estado === 'aprobada').length;
+
+    grid.replaceChildren(...Array.from({ length: total }, (_, i) => {
+      const cupo = cupos[i];
+      const el = document.createElement(cupo ? 'div' : 'button');
+      el.className = 'slot';
+      if (!cupo) {
+        el.type = 'button';
+        el.textContent = String(i + 1);
+        el.setAttribute('aria-label', `Cupo ${i + 1} disponible: postular mi clínica`);
+        el.addEventListener('click', openApply);
+        return el;
+      }
+      el.classList.add('taken');
+      if (cupo.estado === 'aprobada') {
+        el.classList.add('approved');
+        if (cupo.logo) {
+          const img = document.createElement('img');
+          img.src = cupo.logo;
+          img.alt = cupo.nombre || 'Clínica fundadora';
+          el.append(img);
+        } else {
+          const name = document.createElement('span');
+          name.className = 'slot-name';
+          name.textContent = cupo.nombre || `Clínica en ${cupo.ciudad || 'LATAM'}`;
+          el.append(name);
+        }
+        el.title = [cupo.nombre, cupo.ciudad].filter(Boolean).join(' · ');
+      } else {
+        const tag = document.createElement('span');
+        tag.className = 'slot-tag';
+        tag.textContent = 'En revisión';
+        el.append(tag);
+      }
+      return el;
+    }));
+
+    const free = total - taken;
+    if (taken === 0) {
+      note.textContent = `${total} de ${total} disponibles. Ninguna clínica ha entrado todavía; la primera puede ser la tuya.`;
+    } else if (free > 0) {
+      const pending = taken - approved;
+      const detail = [
+        approved && `${approved} confirmada${approved === 1 ? '' : 's'}`,
+        pending && `${pending} en revisión`,
+      ].filter(Boolean).join(', ');
+      note.textContent = `${free} de ${total} disponibles (${detail}).`;
+    } else {
+      note.textContent = 'Los 10 cupos están tomados. Escríbenos a info@saludbot.co para la lista de espera.';
+    }
+    $$('[data-apply]').forEach((btn) => { btn.hidden = free <= 0; });
+  }
+
+  /* ---------------- Application form ---------------- */
+  let logoDataUrl = null;
+
+  function openApply() {
+    const dialog = $('[data-apply-dialog]');
+    $('[data-apply-form]').hidden = false;
+    $('[data-apply-done]').hidden = true;
+    dialog.showModal();
+  }
+
+  function fillSelect(select, options, placeholder) {
+    select.replaceChildren(new Option(placeholder, ''), ...options.map((o) => new Option(o, o)));
+  }
+
+  // Downscale the logo in the browser so the server only ever stores a small file.
+  async function resizeLogo(file) {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, LOGO_SIZE / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    return canvas.toDataURL('image/webp', 0.85); // falls back to PNG where WebP encoding is unsupported
+  }
+
+  function setupApply() {
+    const dialog = $('[data-apply-dialog]');
+    const form = $('[data-apply-form]');
+    const error = $('[data-apply-error]');
+    const submit = $('[data-apply-submit]');
+    const preview = $('[data-logo-preview]');
+    const logoInput = $('[data-logo-input]');
+    const logoLabel = $('[data-logo-label]');
+    if (!dialog || !form) return;
+
+    fillSelect($('[data-specialties]'), SPECIALTIES, 'Elige…');
+    fillSelect($('[data-countries]'), COUNTRIES, 'Elige…');
+    $$('[data-apply]').forEach((btn) => btn.addEventListener('click', openApply));
+    $$('[data-apply-close]').forEach((btn) => btn.addEventListener('click', () => dialog.close()));
+    dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });
+
+    const showError = (msg) => { error.textContent = msg; error.hidden = false; };
+
+    logoInput.addEventListener('change', async () => {
+      error.hidden = true;
+      logoDataUrl = null;
+      preview.textContent = 'Logo';
+      logoLabel.textContent = 'Subir logo';
+      const file = logoInput.files[0];
+      if (!file) return;
+      if (!/^image\/(png|jpeg|webp)$/.test(file.type)) return showError('El logo debe ser PNG, JPG o WebP.');
+      if (file.size > MAX_LOGO_BYTES) return showError('El logo pesa más de 5 MB. Prueba con uno más liviano.');
+      try {
+        logoDataUrl = await resizeLogo(file);
+        const img = new Image();
+        img.src = logoDataUrl;
+        img.alt = 'Vista previa del logo';
+        preview.replaceChildren(img);
+        logoLabel.textContent = 'Cambiar logo';
+      } catch {
+        showError('No pudimos leer esa imagen. Prueba con otra.');
+      }
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      error.hidden = true;
+      form.classList.add('was-validated');
+      if (!form.checkValidity()) {
+        const firstInvalid = form.querySelector(':invalid');
+        firstInvalid?.focus();
+        return showError(firstInvalid?.name === 'acepta'
+          ? 'Para postularte necesitas aceptar la Política de Privacidad y los Términos.'
+          : 'Revisa los campos marcados: faltan datos o hay alguno inválido.');
+      }
+      const data = Object.fromEntries(new FormData(form));
+      const payload = {
+        clinica: data.clinica, especialidad: data.especialidad, pais: data.pais, ciudad: data.ciudad,
+        contacto: data.contacto, whatsapp: data.whatsapp, correo: data.correo || '',
+        mostrar: form.mostrar.checked, acepta: form.acepta.checked, sitio: data.sitio || '',
+        logo: logoDataUrl,
+      };
+
+      submit.disabled = true;
+      try {
+        const res = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(body.error || 'fallo');
+        slotState = body.cupos || slotState;
+        renderSlots();
+        form.reset();
+        form.classList.remove('was-validated');
+        logoDataUrl = null;
+        preview.textContent = 'Logo';
+        logoLabel.textContent = 'Subir logo';
+        form.hidden = true;
+        $('[data-apply-done]').hidden = false;
+      } catch (err) {
+        // On GitHub Pages there is no API: point people to email instead of failing silently.
+        showError(err.message && err.message !== 'fallo' && !/fetch|JSON/i.test(err.message)
+          ? err.message
+          : 'No pudimos enviar tu postulación. Escríbenos a info@saludbot.co y te reservamos el cupo.');
+      } finally {
+        submit.disabled = false;
+      }
+    });
+  }
+
+  setupMotion();
+  setupChat();
+  setupFaq();
+  setupApply();
+  loadSlots();
+})();
