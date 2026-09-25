@@ -11,8 +11,11 @@
   const SPECIALTIES = ['Odontología', 'Veterinaria', 'Estética', 'Psicología', 'Dermatología', 'Fisioterapia', 'Otra'];
   const COUNTRIES = ['Colombia', 'México', 'Perú', 'Ecuador', 'Chile', 'Argentina', 'Venezuela', 'Panamá', 'Costa Rica', 'Rep. Dominicana'];
 
-  const API_URL = 'api/postulaciones';
-  const SLOTS_URL = 'data/cupos.json';
+  // Supabase publishable key: safe in the browser. RLS only lets it insert
+  // applications, upload logos and read approved slots (supabase/migrations/010).
+  const SUPABASE_URL = 'https://txrevckvhxaaywtjsmjg.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_63HxRaMPbw1EdE5W0RxV6A_qRRv0-NP';
+  const LOGO_BUCKET = 'pilot-logos';
   const MAX_LOGO_BYTES = 5 * 1024 * 1024;
   const LOGO_SIZE = 256;
 
@@ -158,17 +161,46 @@
     });
   }
 
-  /* ---------------- Pilot slots (loaded from data/cupos.json) ---------------- */
+  /* ---------------- Supabase (plain fetch, no SDK) ---------------- */
+  const sb = (path, init = {}) => fetch(`${SUPABASE_URL}${path}`, {
+    ...init,
+    headers: { apikey: SUPABASE_KEY, ...init.headers },
+  });
+
+  // Postgres/trigger errors → messages fit for the applicant
+  const APPLY_ERRORS = {
+    23505: 'Ya recibimos una postulación con ese WhatsApp. Te escribimos pronto.',
+    pilot_full: 'Los 10 cupos ya están tomados. Escríbenos a info@saludbot.co para la lista de espera.',
+    pilot_queue_full: 'Estamos revisando muchas postulaciones. Escríbenos a info@saludbot.co y te guardamos el lugar.',
+    rate_limited: 'Estamos recibiendo muchas postulaciones. Inténtalo de nuevo en un rato.',
+  };
+
+  /* ---------------- Pilot slots (only approved clinics take a slot) ---------------- */
   let slotState = { total: 10, cupos: [] };
 
   async function loadSlots() {
     try {
-      const res = await fetch(SLOTS_URL, { cache: 'no-store' });
+      const res = await sb('/rest/v1/rpc/pilot_slots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      });
       if (res.ok) slotState = await res.json();
     } catch {
       // Keep the empty default: every slot shows as available
     }
     renderSlots();
+  }
+
+  // The logo bucket is private: fetch with the key, then show it as a blob URL.
+  async function loadLogo(img, path) {
+    try {
+      const res = await sb(`/storage/v1/object/authenticated/${LOGO_BUCKET}/${encodeURIComponent(path)}`);
+      if (!res.ok) throw new Error('logo');
+      img.src = URL.createObjectURL(await res.blob());
+    } catch {
+      img.replaceWith(Object.assign(document.createElement('span'), { className: 'slot-name', textContent: img.alt }));
+    }
   }
 
   function renderSlots() {
@@ -177,7 +209,6 @@
     if (!grid) return;
     const { total, cupos } = slotState;
     const taken = cupos.length;
-    const approved = cupos.filter((c) => c.estado === 'aprobada').length;
 
     grid.replaceChildren(...Array.from({ length: total }, (_, i) => {
       const cupo = cupos[i];
@@ -190,27 +221,20 @@
         el.addEventListener('click', openApply);
         return el;
       }
-      el.classList.add('taken');
-      if (cupo.estado === 'aprobada') {
-        el.classList.add('approved');
-        if (cupo.logo) {
-          const img = document.createElement('img');
-          img.src = cupo.logo;
-          img.alt = cupo.nombre || 'Clínica fundadora';
-          el.append(img);
-        } else {
-          const name = document.createElement('span');
-          name.className = 'slot-name';
-          name.textContent = cupo.nombre || `Clínica en ${cupo.ciudad || 'LATAM'}`;
-          el.append(name);
-        }
-        el.title = [cupo.nombre, cupo.ciudad].filter(Boolean).join(' · ');
+      el.classList.add('taken', 'approved');
+      const label = cupo.nombre || `Clínica en ${cupo.ciudad || 'LATAM'}`;
+      if (cupo.logo) {
+        const img = document.createElement('img');
+        img.alt = label;
+        el.append(img);
+        loadLogo(img, cupo.logo);
       } else {
-        const tag = document.createElement('span');
-        tag.className = 'slot-tag';
-        tag.textContent = 'En revisión';
-        el.append(tag);
+        const name = document.createElement('span');
+        name.className = 'slot-name';
+        name.textContent = label;
+        el.append(name);
       }
+      el.title = [cupo.nombre, cupo.ciudad].filter(Boolean).join(' · ');
       return el;
     }));
 
@@ -218,12 +242,7 @@
     if (taken === 0) {
       note.textContent = `${total} de ${total} disponibles. Ninguna clínica ha entrado todavía; la primera puede ser la tuya.`;
     } else if (free > 0) {
-      const pending = taken - approved;
-      const detail = [
-        approved && `${approved} confirmada${approved === 1 ? '' : 's'}`,
-        pending && `${pending} en revisión`,
-      ].filter(Boolean).join(', ');
-      note.textContent = `${free} de ${total} disponibles (${detail}).`;
+      note.textContent = `${free} de ${total} disponibles (${taken} clínica${taken === 1 ? '' : 's'} fundadora${taken === 1 ? '' : 's'}).`;
     } else {
       note.textContent = 'Los 10 cupos están tomados. Escríbenos a info@saludbot.co para la lista de espera.';
     }
@@ -307,24 +326,7 @@
           : 'Revisa los campos marcados: faltan datos o hay alguno inválido.');
       }
       const data = Object.fromEntries(new FormData(form));
-      const payload = {
-        clinica: data.clinica, especialidad: data.especialidad, pais: data.pais, ciudad: data.ciudad,
-        contacto: data.contacto, whatsapp: data.whatsapp, correo: data.correo || '',
-        mostrar: form.mostrar.checked, acepta: form.acepta.checked, sitio: data.sitio || '',
-        logo: logoDataUrl,
-      };
-
-      submit.disabled = true;
-      try {
-        const res = await fetch(API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(body.error || 'fallo');
-        slotState = body.cupos || slotState;
-        renderSlots();
+      const done = () => {
         form.reset();
         form.classList.remove('was-validated');
         logoDataUrl = null;
@@ -332,9 +334,40 @@
         logoLabel.textContent = 'Subir logo';
         form.hidden = true;
         $('[data-apply-done]').hidden = false;
+      };
+      // Honeypot filled → a bot. Look like a success so it doesn't retry, but send nothing.
+      if (data.sitio) return done();
+
+      submit.disabled = true;
+      try {
+        let logoPath = null;
+        if (logoDataUrl) {
+          const blob = await (await fetch(logoDataUrl)).blob();
+          logoPath = `${crypto.randomUUID()}.${{ 'image/webp': 'webp', 'image/png': 'png', 'image/jpeg': 'jpg' }[blob.type]}`;
+          const up = await sb(`/storage/v1/object/${LOGO_BUCKET}/${logoPath}`, {
+            method: 'POST',
+            headers: { 'Content-Type': blob.type },
+            body: blob,
+          });
+          if (!up.ok) throw new Error('logo');
+        }
+        const res = await sb('/rest/v1/pilot_applications', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+          body: JSON.stringify({
+            clinic_name: data.clinica.trim(), specialty: data.especialidad, country: data.pais,
+            city: data.ciudad.trim(), contact_name: data.contacto.trim(), whatsapp: data.whatsapp.trim(),
+            email: data.correo.trim() || null, show_publicly: form.mostrar.checked,
+            accepted_terms: form.acepta.checked, logo_path: logoPath,
+          }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(APPLY_ERRORS[body.code] || APPLY_ERRORS[body.message] || 'fallo');
+        }
+        done();
       } catch (err) {
-        // On GitHub Pages there is no API: point people to email instead of failing silently.
-        showError(err.message && err.message !== 'fallo' && !/fetch|JSON/i.test(err.message)
+        showError(Object.values(APPLY_ERRORS).includes(err.message)
           ? err.message
           : 'No pudimos enviar tu postulación. Escríbenos a info@saludbot.co y te reservamos el cupo.');
       } finally {

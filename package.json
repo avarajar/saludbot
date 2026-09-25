@@ -9,8 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "landing": "node landing/server.mjs",
-    "landing:cupos": "node landing/scripts/cupos.mjs"
+    "landing": "node landing/server.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
