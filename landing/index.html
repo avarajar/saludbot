@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SaludBot — Tus pacientes agendan por WhatsApp, a cualquier hora</title>
+  <meta name="description" content="Asistente con IA para el WhatsApp de tu clínica: agenda citas, envía recordatorios y deja que el paciente confirme o reagende en el mismo chat. Piloto abierto para 10 clínicas fundadoras.">
+  <script>document.documentElement.classList.add('js')</script>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%276%27 fill=%27%23141A2E%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%276%27 fill=%27%23F26B4E%27/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,300;1,6..72,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css">
+  <script src="assets/app.js" defer></script>
+</head>
+<body>
+  <div class="progress" data-progress></div>
+
+  <header class="nav">
+    <div class="nav-inner" data-nav>
+      <a href="./" class="logo"><span>SaludBot</span><span class="logo-dot"></span></a>
+      <nav class="nav-links">
+        <a href="#producto">Producto</a>
+        <a href="#como">Cómo funciona</a>
+        <a href="#faq">Preguntas</a>
+        <a href="#fundadoras" class="nav-cta">Ser clínica fundadora</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <!-- ===== HERO ===== -->
+    <section class="hero">
+      <div class="deco glow-blue drift" data-parallax="0.35" style="top:-160px;left:-200px;width:760px;height:760px"></div>
+      <div class="deco glow-coral drift rev" data-parallax="-0.2" style="top:240px;right:-240px;width:820px;height:820px;--dur:20s"></div>
+      <div class="deco" data-parallax="0.45" style="top:120px;right:-140px;width:520px;height:520px;border:1px solid rgba(31,58,147,.22)"></div>
+      <div class="deco" data-parallax="0.25" style="top:200px;right:-60px;width:520px;height:520px;border:1px solid rgba(242,107,78,.3)"></div>
+
+      <div class="container grid-auto hero-grid">
+        <div>
+          <p class="eyebrow fade-in" style="animation-delay:.1s">Piloto · buscamos 10 clínicas fundadoras</p>
+          <h1>
+            <span class="rise"><span style="animation-delay:.15s">Tus pacientes escriben</span></span>
+            <span class="rise"><span style="animation-delay:.28s">por WhatsApp.</span></span>
+            <span class="rise"><span style="animation-delay:.41s"><em style="color:var(--blue);font-weight:300">SaludBot</em> les agenda la cita,</span></span>
+            <span class="rise"><span style="animation-delay:.54s">a <em style="color:var(--coral)">cualquier hora.</em></span></span>
+          </h1>
+          <p class="lead fade-in" style="animation-delay:.8s">Un asistente con IA que agenda, recuerda la cita y deja que el paciente confirme o reagende en el mismo chat. Sin menús de 1-2-3.</p>
+          <div class="hero-ctas fade-in" style="animation-delay:1s">
+            <a data-magnet href="#fundadoras" class="btn btn-shimmer">Quiero ser clínica fundadora <span class="arrow">→</span></a>
+            <a href="#como" class="link-underline">Ver cómo funciona</a>
+          </div>
+        </div>
+
+        <div class="mock" data-tilt>
+          <div class="panel-wrap" data-parallax="0.08">
+            <div class="panel">
+              <div class="panel-head">
+                <span class="display">Viernes 12</span>
+                <span class="panel-count"><span data-confirmed>2</span> confirmadas · 4 citas</span>
+              </div>
+              <div class="panel-rows">
+                <div class="row"><b>8:00</b><span>Andrés Pérez <small>· Control</small></span><span class="state ok">Asistió</span></div>
+                <div class="row" data-row-9><b>9:00</b><span>Laura Gómez <small>· Limpieza</small></span><span class="pill" data-pill>Pendiente</span></div>
+                <div class="row"><b>10:30</b><span>Camila Ruiz <small>· Blanqueamiento</small></span><span class="state">Confirmada</span></div>
+                <div class="row"><b>11:30</b><span>Jorge Díaz <small>· Primera consulta</small></span><span class="state">Confirmada</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="chat-wrap" data-parallax="-0.12">
+            <div class="phone">
+              <div class="screen">
+                <div class="chat-head">
+                  <span class="avatar">S</span>
+                  <div><p>Clínica Dental Sonríe</p><p>en línea</p></div>
+                </div>
+                <div class="chat" data-chat aria-live="polite"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== FACTS ===== -->
+    <section class="container facts">
+      <div class="rule" data-grow></div>
+      <div class="grid-auto facts-grid" data-stagger="120">
+        <div><p class="micro">Recordatorios</p><p class="display">48h <span class="dot">·</span> 24h <span class="dot">·</span> 2h</p></div>
+        <div><p class="micro">Disponibilidad</p><p class="display">Responde 24/7</p></div>
+        <div><p class="micro">Plantillas</p><p class="display">6 especialidades</p></div>
+        <div><p class="micro">Cobertura</p><p class="display">10 países de LATAM</p></div>
+      </div>
+    </section>
+
+    <!-- ===== PRODUCT ===== -->
+    <section id="producto" class="section product">
+      <div class="deco glow-blue" data-parallax="0.15" style="top:0;right:-300px;width:700px;height:700px;--a:.10"></div>
+      <div class="container grid-auto product-grid">
+        <div class="sticky" data-reveal>
+          <p class="eyebrow">Producto</p>
+          <h2 class="h2">Seis cosas que hace hoy. <em style="color:var(--subtle);font-weight:300">Ni una más.</em></h2>
+          <p class="lead">Todo lo que ves aquí ya funciona hoy. Lo que no está, no lo prometemos.</p>
+          <div class="specs">
+            <span>Odontología</span><span>Veterinaria</span><span>Estética</span><span>Psicología</span><span>Dermatología</span><span>Fisioterapia</span>
+          </div>
+        </div>
+        <div class="features" data-stagger="110">
+          <div class="feature"><span class="num">01</span><div><h3>Agenda con disponibilidad real</h3><p>Respeta tu horario, la duración de cada servicio y tu Google Calendar. Solo ofrece horas que de verdad están libres.</p></div></div>
+          <div class="feature"><span class="num">02</span><div><h3>Recordatorios automáticos</h3><p>A las 48h, 24h y 2h. El paciente responde 1 para confirmar o 2 para reagendar.</p></div></div>
+          <div class="feature"><span class="num">03</span><div><h3>Cancelar o reagendar escribiendo normal</h3><p>Como le escribiría a la recepción. Sin menús.</p></div></div>
+          <div class="feature"><span class="num">04</span><div><h3>Seguimiento después de la consulta</h3><p>Y aviso cuando toca volver: limpieza, control, vacuna.</p></div></div>
+          <div class="feature"><span class="num">05</span><div><h3>Panel de la clínica</h3><p>Citas del día, pacientes y un clic para marcar asistió / no asistió.</p></div></div>
+          <div class="feature"><span class="num">06</span><div><h3>Pasa la conversación a una persona</h3><p>Cuando el paciente lo pide o el asistente no está seguro, tu equipo toma el chat.</p></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== HOW IT WORKS ===== -->
+    <section id="como" class="section">
+      <div class="container">
+        <div class="how-head" data-reveal>
+          <div><p class="eyebrow">Cómo funciona</p><h2 class="h2">Tres pasos. Cero complicaciones.</h2></div>
+          <p>Para las clínicas fundadoras, los pasos 1 y 2 los hacemos nosotros.</p>
+        </div>
+        <div class="steps">
+          <div class="rule" data-grow></div>
+          <div class="grid-auto steps-grid" data-stagger="180">
+            <div class="step"><span class="step-num">1</span><h3>Crea tu cuenta</h3><p>Elige tu especialidad y tu país.</p></div>
+            <div class="step"><span class="step-num">2</span><h3>Ajusta servicios y horarios</h3><p>Ya vienen plantillas listas para tu especialidad. Cambia lo que quieras.</p></div>
+            <div class="step"><span class="step-num">3</span><h3>Tus pacientes escriben</h3><p>Por WhatsApp, como siempre. El asistente hace el resto.</p></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== FOUNDING CLINICS ===== -->
+    <section id="fundadoras" class="section founders">
+      <div class="deco glow-coral drift" data-parallax="-0.25" style="top:-300px;left:-200px;width:800px;height:800px;--a:.35;--dur:18s"></div>
+      <div class="deco" data-parallax="-0.08" style="bottom:-260px;right:-120px;width:640px;height:640px;border:1px solid rgba(245,241,234,.15)"></div>
+      <div class="deco" data-parallax="-0.14" style="bottom:-200px;right:0;width:640px;height:640px;border:1px solid rgba(242,107,78,.4)"></div>
+      <div class="container grid-auto founders-grid">
+        <div data-reveal>
+          <p class="eyebrow coral">Clínicas fundadoras</p>
+          <h2 class="h2">Buscamos las <em style="font-weight:300">primeras 10</em> clínicas.</h2>
+          <p class="lead">Te lo configuramos nosotros, sin costo durante el piloto, y mantienes un precio de fundador. A cambio, nos cuentas qué funciona y qué no.</p>
+          <button type="button" data-magnet data-apply class="btn btn-coral">Postular mi clínica <span class="arrow">→</span></button>
+        </div>
+        <div data-reveal style="--d:150ms">
+          <p class="micro">Lugares del piloto</p>
+          <div class="slots" data-slots aria-label="Cupos del piloto"></div>
+          <p class="slots-note" data-slots-note>10 de 10 disponibles. Ninguna clínica ha entrado todavía; la primera puede ser la tuya.</p>
+          <ul class="perks">
+            <li>Configuración hecha por nosotros: servicios, horarios y Google Calendar.</li>
+            <li>Sin costo durante el piloto. Precio de fundador después.</li>
+            <li>A cambio: una llamada corta cada tanto para contarnos qué funciona y qué no.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== FAQ ===== -->
+    <section id="faq" class="section">
+      <div class="container grid-auto faq-grid">
+        <div data-reveal><p class="eyebrow">Preguntas</p><h2 class="h2">Lo que nos preguntan las clínicas</h2></div>
+        <div class="faq" data-reveal style="--d:120ms">
+          <div class="faq-item open">
+            <button type="button" class="faq-q" aria-expanded="true" aria-controls="faq-0"><span>¿Y si el paciente quiere hablar con una persona?</span><span class="faq-plus" aria-hidden="true">+</span></button>
+            <div class="faq-a" id="faq-0"><div><p>Se escala a tu equipo. El asistente avisa y deja la conversación en manos de una persona de tu clínica.</p></div></div>
+          </div>
+          <div class="faq-item">
+            <button type="button" class="faq-q" aria-expanded="false" aria-controls="faq-1"><span>¿Puede agendar mal?</span><span class="faq-plus" aria-hidden="true">+</span></button>
+            <div class="faq-a" id="faq-1"><div><p>Solo ofrece horarios libres según tu agenda y tu horario de atención. Si un espacio no está disponible, no lo propone.</p></div></div>
+          </div>
+          <div class="faq-item">
+            <button type="button" class="faq-q" aria-expanded="false" aria-controls="faq-2"><span>¿Qué pasa con los datos de mis pacientes?</span><span class="faq-plus" aria-hidden="true">+</span></button>
+            <div class="faq-a" id="faq-2"><div><p>Se tratan como información sensible, con acceso restringido a tu clínica.</p></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== FINAL CTA ===== -->
+    <section class="closing">
+      <div class="deco glow-blue drift" data-parallax="-0.3" style="bottom:-300px;left:-100px;width:700px;height:700px;--a:.18;--dur:14s"></div>
+      <div class="deco glow-coral drift rev" data-parallax="0.2" style="top:-200px;right:-100px;width:600px;height:600px;--a:.28;--dur:17s"></div>
+      <div class="deco" data-parallax="-0.12" style="top:50%;left:50%;margin:-360px 0 0 -360px;width:720px;height:720px;border:1px solid rgba(242,107,78,.35)"></div>
+      <div class="container" data-reveal>
+        <h2>Tu próximo paciente te está escribiendo <em style="color:var(--coral);font-weight:300">ahora mismo.</em></h2>
+        <a data-magnet href="#fundadoras" class="btn btn-ink">Quiero ser clínica fundadora <span class="arrow">→</span></a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <span><span class="display">SaludBot</span> &nbsp;·&nbsp; Bogotá, Colombia &nbsp;·&nbsp; © 2026</span>
+      <nav>
+        <a href="mailto:info@saludbot.co">info@saludbot.co</a>
+        <a href="privacidad.html">Política de Privacidad</a>
+        <a href="terminos.html">Términos y Condiciones</a>
+      </nav>
+    </div>
+  </footer>
+
+  <!-- ===== APPLICATION FORM ===== -->
+  <dialog class="apply" data-apply-dialog aria-labelledby="apply-title">
+    <form data-apply-form novalidate>
+      <div class="apply-head">
+        <div>
+          <h2 id="apply-title">Postula tu clínica</h2>
+          <p class="apply-sub" data-apply-sub>Te escribimos por WhatsApp para confirmar tu cupo y agendar la configuración.</p>
+        </div>
+        <button type="button" class="apply-close" data-apply-close aria-label="Cerrar">×</button>
+      </div>
+
+      <label class="field"><span>Nombre de la clínica</span><input name="clinica" required maxlength="80" autocomplete="organization"></label>
+      <div class="field-row">
+        <label class="field"><span>Especialidad</span><select name="especialidad" required data-specialties></select></label>
+        <label class="field"><span>País</span><select name="pais" required data-countries></select></label>
+      </div>
+      <div class="field-row">
+        <label class="field"><span>Ciudad</span><input name="ciudad" required maxlength="60" autocomplete="address-level2"></label>
+        <label class="field"><span>Tu nombre</span><input name="contacto" required maxlength="80" autocomplete="name"></label>
+      </div>
+      <div class="field-row">
+        <label class="field"><span>WhatsApp</span><input name="whatsapp" required type="tel" inputmode="tel" maxlength="20" autocomplete="tel" placeholder="+57 300 000 0000"></label>
+        <label class="field"><span>Correo <small>(opcional)</small></span><input name="correo" type="email" maxlength="120" autocomplete="email"></label>
+      </div>
+      <div class="field">
+        <span>Logo <small>(opcional · PNG, JPG o WebP)</small></span>
+        <div class="logo-picker">
+          <div class="logo-preview" data-logo-preview>Logo</div>
+          <label class="logo-button">
+            <input type="file" accept="image/png,image/jpeg,image/webp" data-logo-input>
+            <span data-logo-label>Subir logo</span>
+          </label>
+        </div>
+      </div>
+      <!-- Honeypot: bots fill it, people never see it -->
+      <label class="hp" aria-hidden="true">Sitio web<input name="sitio" tabindex="-1" autocomplete="off"></label>
+
+      <label class="check"><input type="checkbox" name="mostrar"><span>Pueden mostrar el nombre y el logo de mi clínica en esta página.</span></label>
+      <label class="check"><input type="checkbox" name="acepta" required><span>Acepto la <a href="privacidad.html" target="_blank">Política de Privacidad</a> y los <a href="terminos.html" target="_blank">Términos</a>.</span></label>
+
+      <p class="form-error" data-apply-error hidden></p>
+      <button type="submit" class="btn btn-shimmer" data-apply-submit>Enviar postulación <span class="arrow">→</span></button>
+    </form>
+    <div class="apply-done" data-apply-done hidden>
+      <span class="big">✓</span>
+      <h2>¡Listo! Tu cupo quedó reservado.</h2>
+      <p class="apply-sub">Te escribimos por WhatsApp para confirmarlo. Mientras lo revisamos, aparece como "en revisión".</p>
+      <button type="button" class="btn btn-ink" data-apply-close>Cerrar</button>
+    </div>
+  </dialog>
+</body>
+</html>

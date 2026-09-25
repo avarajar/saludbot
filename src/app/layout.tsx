@@ -16,9 +16,8 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "SaludBot - Automatiza tu Clínica con WhatsApp e IA",
-  description:
-    "Chatbot de WhatsApp con IA para clínicas en Colombia. Agenda citas, recordatorios automáticos, confirmaciones y seguimiento de pacientes.",
+  title: "SaludBot",
+  description: "Panel de SaludBot: citas, pacientes y el asistente de WhatsApp de tu clínica.",
 };
 
 export default function RootLayout({
