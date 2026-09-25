@@ -29,7 +29,7 @@ jobs:
         run: |
           mkdir _site
           cp landing/*.html _site/
-          cp -r landing/assets _site/
+          cp -r landing/assets landing/odontologia _site/
           touch _site/.nojekyll
 
       - uses: actions/configure-pages@v5

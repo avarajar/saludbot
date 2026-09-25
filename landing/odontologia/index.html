@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SaludBot para odontología — Controles confirmados por WhatsApp</title>
+  <meta name="description" content="Asistente con IA para el WhatsApp de tu consultorio odontológico: confirma los controles de ortodoncia, reprograma en el mismo chat y recuerda la limpieza semestral. Piloto para 10 consultorios.">
+  <script>document.documentElement.classList.add('js')</script>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%276%27 fill=%27%23141A2E%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%276%27 fill=%27%23F26B4E%27/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,300;1,6..72,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/styles.css">
+  <script src="../assets/app.js" defer></script>
+</head>
+<body>
+  <div class="progress" data-progress></div>
+
+  <header class="nav">
+    <div class="nav-inner" data-nav>
+      <a href="../" class="logo"><span>SaludBot</span><span class="logo-dot"></span></a>
+      <nav class="nav-links">
+        <a href="#producto">Producto</a>
+        <a href="#como">Cómo funciona</a>
+        <a href="#faq">Preguntas</a>
+        <a href="#fundadoras" class="nav-cta">Quiero un cupo</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <!-- ===== HERO ===== -->
+    <section class="hero">
+      <div class="deco glow-blue drift" data-parallax="0.35" style="top:-160px;left:-200px;width:760px;height:760px"></div>
+      <div class="deco glow-coral drift rev" data-parallax="-0.2" style="top:240px;right:-240px;width:820px;height:820px;--dur:20s"></div>
+      <div class="deco" data-parallax="0.45" style="top:120px;right:-140px;width:520px;height:520px;border:1px solid rgba(31,58,147,.22)"></div>
+      <div class="deco" data-parallax="0.25" style="top:200px;right:-60px;width:520px;height:520px;border:1px solid rgba(242,107,78,.3)"></div>
+
+      <div class="container grid-auto hero-grid">
+        <div>
+          <p class="eyebrow fade-in" style="animation-delay:.1s">Odontología · piloto para 10 consultorios</p>
+          <h1>
+            <span class="rise"><span style="animation-delay:.15s">Tus pacientes de</span></span>
+            <span class="rise"><span style="animation-delay:.28s">ortodoncia <em style="color:var(--blue);font-weight:300">no faltan</em></span></span>
+            <span class="rise"><span style="animation-delay:.41s">al control.</span></span>
+          </h1>
+          <p class="lead fade-in" style="animation-delay:.8s">SaludBot le recuerda el control del mes por WhatsApp, el paciente confirma o lo cambia en el mismo chat, y tu agenda se actualiza sola. Sin cambiar de software.</p>
+          <div class="hero-ctas fade-in" style="animation-delay:1s">
+            <a data-magnet href="#fundadoras" class="btn btn-shimmer">Quiero uno de los 10 cupos <span class="arrow">→</span></a>
+            <a href="#como" class="link-underline">Ver cómo funciona</a>
+          </div>
+        </div>
+
+        <div class="mock" data-tilt>
+          <div class="panel-wrap" data-parallax="0.08">
+            <div class="panel">
+              <div class="panel-head">
+                <span class="display">Martes 16</span>
+                <span class="panel-count"><span data-confirmed>2</span> confirmadas · 4 citas</span>
+              </div>
+              <div class="panel-rows">
+                <div class="row"><b>8:00</b><span>Sofía Mejía <small>· Control de brackets</small></span><span class="state ok">Asistió</span></div>
+                <div class="row" data-row-9><b>9:00</b><span>Mateo Rojas <small>· Control de brackets</small></span><span class="pill" data-pill>Pendiente</span></div>
+                <div class="row"><b>10:30</b><span>Valentina Cruz <small>· Limpieza semestral</small></span><span class="state">Confirmada</span></div>
+                <div class="row"><b>11:30</b><span>Daniel Ortiz <small>· Valoración ortodoncia</small></span><span class="state">Confirmada</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="chat-wrap" data-parallax="-0.12">
+            <div class="phone">
+              <div class="screen">
+                <div class="chat-head">
+                  <span class="avatar">S</span>
+                  <div><p>Ortodoncia Sonríe</p><p>en línea</p></div>
+                </div>
+                <div class="chat" data-chat aria-live="polite"></div>
+                <script type="application/json" data-chat-script>[
+                  { "me": false, "text": "Hola, Mateo. Le recordamos su control de brackets mañana martes a las 9:00 a. m. Responda 1 para confirmar o 2 para cambiar la hora." },
+                  { "me": true, "text": "2, mañana no puedo" },
+                  { "me": false, "text": "Sin problema. Para su control tengo miércoles 4:00 p. m., jueves 8:00 a. m. o viernes 5:30 p. m. ¿Cuál prefiere?" },
+                  { "me": true, "text": "El viernes" },
+                  { "me": false, "text": "Listo. Su control queda el viernes a las 5:30 p. m. Le recordaré el día antes." },
+                  { "me": true, "text": "Gracias" },
+                  { "me": false, "text": "Con gusto. Lo esperamos el viernes." }
+                ]</script>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== FACTS ===== -->
+    <section class="container facts">
+      <div class="rule" data-grow></div>
+      <div class="grid-auto facts-grid" data-stagger="120">
+        <div><p class="micro">Controles de ortodoncia</p><p class="display">Cada mes, confirmados</p></div>
+        <div><p class="micro">Limpieza</p><p class="display">Aviso a los 6 meses</p></div>
+        <div><p class="micro">Tu software</p><p class="display">No hay que cambiarlo</p></div>
+        <div><p class="micro">Responde</p><p class="display">24/7</p></div>
+      </div>
+    </section>
+
+    <!-- ===== PRODUCT ===== -->
+    <section id="producto" class="section product">
+      <div class="deco glow-blue" data-parallax="0.15" style="top:0;right:-300px;width:700px;height:700px;--a:.10"></div>
+      <div class="container grid-auto product-grid">
+        <div class="sticky" data-reveal>
+          <p class="eyebrow">Para tu consultorio</p>
+          <h2 class="h2">Lo que hace por tu consultorio. <em style="color:var(--subtle);font-weight:300">Ya funciona.</em></h2>
+          <p class="lead">Un control perdido es una cita vacía y, muchas veces, una cuota que se atrasa. SaludBot se encarga de que el paciente llegue.</p>
+          <div class="specs">
+            <span>Ortodoncia</span><span>Limpiezas</span><span>Valoraciones</span><span>Tratamientos</span>
+          </div>
+        </div>
+        <div class="features" data-stagger="110">
+          <div class="feature"><span class="num">01</span><div><h3>Confirma el control del mes</h3><p>Recordatorio por WhatsApp antes de cada control. El paciente responde 1 para confirmar y tú lo ves en el panel.</p></div></div>
+          <div class="feature"><span class="num">02</span><div><h3>Reprograma en el mismo chat</h3><p>Si no puede, le ofrece horas que de verdad están libres según tu horario y tu Google Calendar. Sin llamadas de ida y vuelta.</p></div></div>
+          <div class="feature"><span class="num">03</span><div><h3>Recuerda la limpieza semestral</h3><p>Seis meses después de la última limpieza, le escribe al paciente para que vuelva a agendar.</p></div></div>
+          <div class="feature"><span class="num">04</span><div><h3>Agenda nuevas valoraciones</h3><p>Cuando un paciente nuevo escribe, pregunta lo necesario y le da cita, a cualquier hora.</p></div></div>
+          <div class="feature"><span class="num">05</span><div><h3>No reemplaza tu software</h3><p>Trabaja con tu Google Calendar. Si llevas la historia clínica en otro programa, sigue ahí: SaludBot no la toca.</p></div></div>
+          <div class="feature"><span class="num">06</span><div><h3>Pasa la conversación a tu equipo</h3><p>Si el paciente pregunta por un dolor, un presupuesto o algo clínico, el chat pasa a una persona de tu consultorio.</p></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== HOW IT WORKS ===== -->
+    <section id="como" class="section">
+      <div class="container">
+        <div class="how-head" data-reveal>
+          <div><p class="eyebrow">Cómo funciona</p><h2 class="h2">Tres pasos. Cero complicaciones.</h2></div>
+          <p>Para los consultorios fundadores, los pasos 1 y 2 los hacemos nosotros.</p>
+        </div>
+        <div class="steps">
+          <div class="rule" data-grow></div>
+          <div class="grid-auto steps-grid" data-stagger="180">
+            <div class="step"><span class="step-num">1</span><h3>Crea tu cuenta</h3><p>Te la creamos con los servicios de odontología ya cargados.</p></div>
+            <div class="step"><span class="step-num">2</span><h3>Ajusta servicios y horarios</h3><p>Controles, limpiezas, valoraciones: duración y horario de cada uno. Conectamos tu Google Calendar.</p></div>
+            <div class="step"><span class="step-num">3</span><h3>Tus pacientes escriben</h3><p>Por WhatsApp, como siempre. El asistente hace el resto.</p></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== FOUNDING CLINICS ===== -->
+    <section id="fundadoras" class="section founders">
+      <div class="deco glow-coral drift" data-parallax="-0.25" style="top:-300px;left:-200px;width:800px;height:800px;--a:.35;--dur:18s"></div>
+      <div class="deco" data-parallax="-0.08" style="bottom:-260px;right:-120px;width:640px;height:640px;border:1px solid rgba(245,241,234,.15)"></div>
+      <div class="deco" data-parallax="-0.14" style="bottom:-200px;right:0;width:640px;height:640px;border:1px solid rgba(242,107,78,.4)"></div>
+      <div class="container grid-auto founders-grid">
+        <div data-reveal>
+          <p class="eyebrow coral">Consultorios fundadores</p>
+          <h2 class="h2"><em style="font-weight:300">10 cupos</em> para consultorios odontológicos.</h2>
+          <p class="lead">Te lo configuramos nosotros, sin costo durante el piloto, y mantienes un precio de fundador. A cambio, nos cuentas qué funciona y qué no.</p>
+          <button type="button" data-magnet data-apply class="btn btn-coral">Postular mi consultorio <span class="arrow">→</span></button>
+        </div>
+        <div data-reveal style="--d:150ms">
+          <p class="micro">Lugares del piloto</p>
+          <div class="slots" data-slots aria-label="Cupos del piloto"></div>
+          <p class="slots-note" data-slots-note>10 de 10 disponibles. Ninguna clínica ha entrado todavía; la primera puede ser la tuya.</p>
+          <ul class="perks">
+            <li>Configuración hecha por nosotros: controles, limpiezas, horarios y Google Calendar.</li>
+            <li>Sin costo durante el piloto. Precio de fundador después.</li>
+            <li>A cambio: una llamada corta cada tanto para contarnos qué funciona y qué no.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== FAQ ===== -->
+    <section id="faq" class="section">
+      <div class="container grid-auto faq-grid">
+        <div data-reveal><p class="eyebrow">Preguntas</p><h2 class="h2">Lo que nos preguntan los consultorios</h2></div>
+        <div class="faq" data-reveal style="--d:120ms">
+          <div class="faq-item open">
+            <button type="button" class="faq-q" aria-expanded="true" aria-controls="faq-0"><span>¿Tengo que dejar mi software actual?</span><span class="faq-plus" aria-hidden="true">+</span></button>
+            <div class="faq-a" id="faq-0"><div><p>No. SaludBot trabaja con tu Google Calendar y se encarga del WhatsApp. Tu historia clínica y tu facturación siguen donde están.</p></div></div>
+          </div>
+          <div class="faq-item">
+            <button type="button" class="faq-q" aria-expanded="false" aria-controls="faq-1"><span>¿Qué pasa con la historia clínica?</span><span class="faq-plus" aria-hidden="true">+</span></button>
+            <div class="faq-a" id="faq-1"><div><p>SaludBot no la guarda ni la lee. Solo maneja lo necesario para la cita: nombre, teléfono, servicio y hora.</p></div></div>
+          </div>
+          <div class="faq-item">
+            <button type="button" class="faq-q" aria-expanded="false" aria-controls="faq-2"><span>¿Y si el paciente pregunta por un dolor o un presupuesto?</span><span class="faq-plus" aria-hidden="true">+</span></button>
+            <div class="faq-a" id="faq-2"><div><p>No da consejos clínicos ni precios de tratamientos. Le avisa a tu equipo y deja la conversación en manos de una persona del consultorio.</p></div></div>
+          </div>
+          <div class="faq-item">
+            <button type="button" class="faq-q" aria-expanded="false" aria-controls="faq-3"><span>¿Usa mi número de WhatsApp?</span><span class="faq-plus" aria-hidden="true">+</span></button>
+            <div class="faq-a" id="faq-3"><div><p>Durante el piloto lo definimos contigo: puede usar el número del consultorio o uno nuevo. Te explicamos las opciones en la primera llamada.</p></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== FINAL CTA ===== -->
+    <section class="closing">
+      <div class="deco glow-blue drift" data-parallax="-0.3" style="bottom:-300px;left:-100px;width:700px;height:700px;--a:.18;--dur:14s"></div>
+      <div class="deco glow-coral drift rev" data-parallax="0.2" style="top:-200px;right:-100px;width:600px;height:600px;--a:.28;--dur:17s"></div>
+      <div class="deco" data-parallax="-0.12" style="top:50%;left:50%;margin:-360px 0 0 -360px;width:720px;height:720px;border:1px solid rgba(242,107,78,.35)"></div>
+      <div class="container" data-reveal>
+        <h2>El control del mes que viene, <em style="color:var(--coral);font-weight:300">ya confirmado.</em></h2>
+        <a data-magnet href="#fundadoras" class="btn btn-ink">Quiero uno de los 10 cupos <span class="arrow">→</span></a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <span><span class="display">SaludBot</span> &nbsp;·&nbsp; Bogotá, Colombia &nbsp;·&nbsp; © 2026</span>
+      <nav>
+        <a href="mailto:info@saludbot.co">info@saludbot.co</a>
+        <a href="../privacidad.html">Política de Privacidad</a>
+        <a href="../terminos.html">Términos y Condiciones</a>
+      </nav>
+    </div>
+  </footer>
+
+  <!-- ===== APPLICATION FORM ===== -->
+  <dialog class="apply" data-apply-dialog aria-labelledby="apply-title">
+    <form data-apply-form data-specialty="Odontología" novalidate>
+      <div class="apply-head">
+        <div>
+          <h2 id="apply-title">Postula tu consultorio</h2>
+          <p class="apply-sub" data-apply-sub>Te escribimos por WhatsApp para confirmar tu cupo y agendar la configuración.</p>
+        </div>
+        <button type="button" class="apply-close" data-apply-close aria-label="Cerrar">×</button>
+      </div>
+
+      <label class="field"><span>Nombre del consultorio</span><input name="clinica" required maxlength="80" autocomplete="organization"></label>
+      <div class="field-row">
+        <label class="field"><span>Especialidad</span><select name="especialidad" required data-specialties></select></label>
+        <label class="field"><span>País</span><select name="pais" required data-countries></select></label>
+      </div>
+      <div class="field-row">
+        <label class="field"><span>Ciudad</span><input name="ciudad" required maxlength="60" autocomplete="address-level2"></label>
+        <label class="field"><span>Tu nombre</span><input name="contacto" required maxlength="80" autocomplete="name"></label>
+      </div>
+      <div class="field-row">
+        <label class="field"><span>WhatsApp</span><input name="whatsapp" required type="tel" inputmode="tel" maxlength="20" autocomplete="tel" placeholder="+57 300 000 0000"></label>
+        <label class="field"><span>Correo <small>(opcional)</small></span><input name="correo" type="email" maxlength="120" autocomplete="email"></label>
+      </div>
+      <label class="field"><span>¿Cómo agendan hoy? <small>(opcional)</small></span><select name="agenda" data-scheduling></select></label>
+      <div class="field">
+        <span>Logo <small>(opcional · PNG, JPG o WebP)</small></span>
+        <div class="logo-picker">
+          <div class="logo-preview" data-logo-preview>Logo</div>
+          <label class="logo-button">
+            <input type="file" accept="image/png,image/jpeg,image/webp" data-logo-input>
+            <span data-logo-label>Subir logo</span>
+          </label>
+        </div>
+      </div>
+      <!-- Honeypot: bots fill it, people never see it -->
+      <label class="hp" aria-hidden="true">Sitio web<input name="sitio" tabindex="-1" autocomplete="off"></label>
+
+      <label class="check"><input type="checkbox" name="mostrar"><span>Pueden mostrar el nombre y el logo de mi consultorio en esta página.</span></label>
+      <label class="check"><input type="checkbox" name="acepta" required><span>Acepto la <a href="../privacidad.html" target="_blank">Política de Privacidad</a> y los <a href="../terminos.html" target="_blank">Términos</a>.</span></label>
+
+      <p class="form-error" data-apply-error hidden></p>
+      <button type="submit" class="btn btn-shimmer" data-apply-submit>Enviar postulación <span class="arrow">→</span></button>
+    </form>
+    <div class="apply-done" data-apply-done hidden>
+      <span class="big">✓</span>
+      <h2>¡Listo! Recibimos tu postulación.</h2>
+      <p class="apply-sub">La revisamos y te escribimos por WhatsApp para confirmar tu cupo. Cuando quede aprobada, tu consultorio aparece aquí.</p>
+      <button type="button" class="btn btn-ink" data-apply-close>Cerrar</button>
+    </div>
+  </dialog>
+</body>
+</html>

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SaludBot — Tus pacientes agendan por WhatsApp, a cualquier hora</title>
-  <meta name="description" content="Asistente con IA para el WhatsApp de tu clínica: agenda citas, envía recordatorios y deja que el paciente confirme o reagende en el mismo chat. Piloto abierto para 10 clínicas fundadoras.">
+  <meta name="description" content="Asistente con IA para el WhatsApp de tu clínica: agenda citas, envía recordatorios y deja que el paciente confirme o reagende en el mismo chat. Piloto abierto para 10 consultorios odontológicos.">
   <script>document.documentElement.classList.add('js')</script>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%276%27 fill=%27%23141A2E%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%276%27 fill=%27%23F26B4E%27/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -21,6 +21,7 @@
       <a href="./" class="logo"><span>SaludBot</span><span class="logo-dot"></span></a>
       <nav class="nav-links">
         <a href="#producto">Producto</a>
+        <a href="odontologia/">Odontología</a>
         <a href="#como">Cómo funciona</a>
         <a href="#faq">Preguntas</a>
         <a href="#fundadoras" class="nav-cta">Ser clínica fundadora</a>
@@ -38,7 +39,7 @@
 
       <div class="container grid-auto hero-grid">
         <div>
-          <p class="eyebrow fade-in" style="animation-delay:.1s">Piloto · buscamos 10 clínicas fundadoras</p>
+          <p class="eyebrow fade-in" style="animation-delay:.1s">Piloto · empezamos con consultorios odontológicos</p>
           <h1>
             <span class="rise"><span style="animation-delay:.15s">Tus pacientes escriben</span></span>
             <span class="rise"><span style="animation-delay:.28s">por WhatsApp.</span></span>
@@ -88,8 +89,8 @@
       <div class="grid-auto facts-grid" data-stagger="120">
         <div><p class="micro">Recordatorios</p><p class="display">48h <span class="dot">·</span> 24h <span class="dot">·</span> 2h</p></div>
         <div><p class="micro">Disponibilidad</p><p class="display">Responde 24/7</p></div>
-        <div><p class="micro">Plantillas</p><p class="display">6 especialidades</p></div>
-        <div><p class="micro">Cobertura</p><p class="display">10 países de LATAM</p></div>
+        <div><p class="micro">Confirmar o reagendar</p><p class="display">En el mismo chat</p></div>
+        <div><p class="micro">Si hace falta</p><p class="display">Pasa a tu equipo</p></div>
       </div>
     </section>
 
@@ -112,6 +113,34 @@
           <div class="feature"><span class="num">04</span><div><h3>Seguimiento después de la consulta</h3><p>Y aviso cuando toca volver: limpieza, control, vacuna.</p></div></div>
           <div class="feature"><span class="num">05</span><div><h3>Panel de la clínica</h3><p>Citas del día, pacientes y un clic para marcar asistió / no asistió.</p></div></div>
           <div class="feature"><span class="num">06</span><div><h3>Pasa la conversación a una persona</h3><p>Cuando el paciente lo pide o el asistente no está seguro, tu equipo toma el chat.</p></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== SPECIALTIES ===== -->
+    <section id="especialidades" class="section">
+      <div class="container">
+        <div class="how-head" data-reveal>
+          <div><p class="eyebrow">Por especialidad</p><h2 class="h2">Empezamos por los consultorios odontológicos.</h2></div>
+          <p>Una especialidad a la vez, para hacerlo bien. Si tu consultorio es de otra, escríbenos y te avisamos cuando abramos.</p>
+        </div>
+        <div class="grid-auto verticals-grid" data-stagger="120">
+          <a class="vertical active" href="odontologia/">
+            <p class="micro">Piloto abierto</p>
+            <h3>Odontología</h3>
+            <p>Controles de ortodoncia confirmados, reprogramaciones en el chat y el recordatorio de la limpieza semestral.</p>
+            <span class="link-underline">Ver cómo funciona en odontología →</span>
+          </a>
+          <div class="vertical soon">
+            <p class="micro">Próximamente</p>
+            <h3>Veterinarias</h3>
+            <p>Vacunas, desparasitación y peluquería: que el dueño no olvide volver.</p>
+          </div>
+          <div class="vertical soon">
+            <p class="micro">Próximamente</p>
+            <h3>Psicología</h3>
+            <p>Sesiones semanales confirmadas y cancelaciones a tiempo.</p>
+          </div>
         </div>
       </div>
     </section>
@@ -142,8 +171,8 @@
       <div class="container grid-auto founders-grid">
         <div data-reveal>
           <p class="eyebrow coral">Clínicas fundadoras</p>
-          <h2 class="h2">Buscamos las <em style="font-weight:300">primeras 10</em> clínicas.</h2>
-          <p class="lead">Te lo configuramos nosotros, sin costo durante el piloto, y mantienes un precio de fundador. A cambio, nos cuentas qué funciona y qué no.</p>
+          <h2 class="h2">Buscamos los <em style="font-weight:300">primeros 10</em> consultorios odontológicos.</h2>
+          <p class="lead">Te lo configuramos nosotros, sin costo durante el piloto, y mantienes un precio de fundador. A cambio, nos cuentas qué funciona y qué no. <a href="odontologia/" class="link-underline">Cómo funciona en odontología</a></p>
           <button type="button" data-magnet data-apply class="btn btn-coral">Postular mi clínica <span class="arrow">→</span></button>
         </div>
         <div data-reveal style="--d:150ms">
@@ -227,6 +256,7 @@
         <label class="field"><span>WhatsApp</span><input name="whatsapp" required type="tel" inputmode="tel" maxlength="20" autocomplete="tel" placeholder="+57 300 000 0000"></label>
         <label class="field"><span>Correo <small>(opcional)</small></span><input name="correo" type="email" maxlength="120" autocomplete="email"></label>
       </div>
+      <label class="field"><span>¿Cómo agendan hoy? <small>(opcional)</small></span><select name="agenda" data-scheduling></select></label>
       <div class="field">
         <span>Logo <small>(opcional · PNG, JPG o WebP)</small></span>
         <div class="logo-picker">

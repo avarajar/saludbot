@@ -10,6 +10,15 @@
   // Kept in sync by hand with src/lib/clinics/templates.ts and countries.ts
   const SPECIALTIES = ['Odontología', 'Veterinaria', 'Estética', 'Psicología', 'Dermatología', 'Fisioterapia', 'Otra'];
   const COUNTRIES = ['Colombia', 'México', 'Perú', 'Ecuador', 'Chile', 'Argentina', 'Venezuela', 'Panamá', 'Costa Rica', 'Rep. Dominicana'];
+  // Values must match the check constraint in supabase/migrations/011
+  const SCHEDULING = [
+    ['whatsapp_manual', 'WhatsApp o cuaderno, a mano'],
+    ['excel', 'Excel u hoja de cálculo'],
+    ['google_calendar', 'Google Calendar'],
+    ['dentalink', 'Dentalink'],
+    ['doctoralia', 'Doctoralia'],
+    ['otro_software', 'Otro software'],
+  ];
 
   // Supabase publishable key: safe in the browser. RLS only lets it insert
   // applications, upload logos and read approved slots (supabase/migrations/010).
@@ -90,7 +99,8 @@
   }
 
   /* ---------------- Hero chat loop ---------------- */
-  const CHAT = [
+  // A page can replace the script with <script type="application/json" data-chat-script>
+  const DEFAULT_CHAT = [
     { me: true, text: 'Hola, necesito una cita para limpieza dental' },
     { me: false, text: 'Con gusto. Para limpieza (60 min) tengo jueves 10:00 a. m., viernes 9:00 a. m. o viernes 3:00 p. m. ¿Cuál prefiere?' },
     { me: true, text: 'El viernes a las 9' },
@@ -104,6 +114,8 @@
   function setupChat() {
     const chat = $('[data-chat]');
     if (!chat) return;
+    const custom = $('[data-chat-script]');
+    const CHAT = custom ? JSON.parse(custom.textContent) : DEFAULT_CHAT;
     const row = $('[data-row-9]');
     const pill = $('[data-pill]');
     const count = $('[data-confirmed]');
@@ -259,8 +271,9 @@
     dialog.showModal();
   }
 
+  // options: plain strings, or [value, label] pairs
   function fillSelect(select, options, placeholder) {
-    select.replaceChildren(new Option(placeholder, ''), ...options.map((o) => new Option(o, o)));
+    select.replaceChildren(new Option(placeholder, ''), ...options.map((o) => (Array.isArray(o) ? new Option(o[1], o[0]) : new Option(o, o))));
   }
 
   // Downscale the logo in the browser so the server only ever stores a small file.
@@ -285,8 +298,11 @@
     const logoLabel = $('[data-logo-label]');
     if (!dialog || !form) return;
 
-    fillSelect($('[data-specialties]'), SPECIALTIES, 'Elige…');
+    const specialties = $('[data-specialties]');
+    fillSelect(specialties, SPECIALTIES, 'Elige…');
+    specialties.value = form.dataset.specialty || '';
     fillSelect($('[data-countries]'), COUNTRIES, 'Elige…');
+    fillSelect($('[data-scheduling]'), SCHEDULING, 'Elige… (opcional)');
     $$('[data-apply]').forEach((btn) => btn.addEventListener('click', openApply));
     $$('[data-apply-close]').forEach((btn) => btn.addEventListener('click', () => dialog.close()));
     dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });
@@ -328,6 +344,7 @@
       const data = Object.fromEntries(new FormData(form));
       const done = () => {
         form.reset();
+        specialties.value = form.dataset.specialty || '';
         form.classList.remove('was-validated');
         logoDataUrl = null;
         preview.textContent = 'Logo';
@@ -359,6 +376,7 @@
             city: data.ciudad.trim(), contact_name: data.contacto.trim(), whatsapp: data.whatsapp.trim(),
             email: data.correo.trim() || null, show_publicly: form.mostrar.checked,
             accepted_terms: form.acepta.checked, logo_path: logoPath,
+            current_scheduling: data.agenda || null,
           }),
         });
         if (!res.ok) {
