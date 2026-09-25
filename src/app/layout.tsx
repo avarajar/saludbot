@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DM_Sans, Playfair_Display } from "next/font/google";
+import { DM_Sans, Newsreader, Playfair_Display, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -15,10 +15,23 @@ const playfair = Playfair_Display({
   style: ["normal", "italic"],
 });
 
+const newsreader = Newsreader({
+  variable: "--font-newsreader",
+  subsets: ["latin"],
+  style: ["normal", "italic"],
+  axes: ["opsz"],
+});
+
+const jakarta = Plus_Jakarta_Sans({
+  variable: "--font-jakarta",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
+
 export const metadata: Metadata = {
-  title: "SaludBot - Automatiza tu Clínica con WhatsApp e IA",
+  title: "SaludBot — Tus pacientes agendan por WhatsApp, a cualquier hora",
   description:
-    "Chatbot de WhatsApp con IA para clínicas en Colombia. Agenda citas, recordatorios automáticos, confirmaciones y seguimiento de pacientes.",
+    "Asistente con IA para el WhatsApp de tu clínica: agenda citas, envía recordatorios y deja que el paciente confirme o reagende en el mismo chat. Piloto abierto para 10 clínicas fundadoras.",
 };
 
 export default function RootLayout({
@@ -29,7 +42,7 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body
-        className={`${dmSans.variable} ${playfair.variable} antialiased`}
+        className={`${dmSans.variable} ${playfair.variable} ${newsreader.variable} ${jakarta.variable} antialiased`}
       >
         {children}
       </body>
