@@ -3,6 +3,16 @@
 Sitio estático (HTML, CSS y JS, sin build) que se publica en GitHub Pages con
 `.github/workflows/landing.yml` en cada push a `main` que toque `landing/`.
 
+## Páginas
+
+- `index.html`: home general de SaludBot, con la sección "Por especialidad".
+- `odontologia/index.html`: página enfocada en consultorios odontológicos. Usa los mismos
+  `assets/`; el chat del hero se define en su `<script type="application/json" data-chat-script>`
+  y el formulario viene con la especialidad marcada (`data-specialty` en el `<form>`).
+
+Una página nueva por especialidad se hace copiando `odontologia/` y agregando su carpeta
+al paso "Collect public files" de `.github/workflows/landing.yml`.
+
 ## Probar en local
 
 ```bash

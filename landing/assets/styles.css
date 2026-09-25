@@ -167,6 +167,19 @@ em { font-style: italic; }
 .feature p, .step p { margin-top: 10px; font-size: 15px; line-height: 1.65; color: var(--muted); text-wrap: pretty; }
 
 /* ---------- How it works ---------- */
+/* Specialty cards (home → one page per specialty) */
+.verticals-grid { --min: 260px; gap: 20px; }
+.vertical { display: flex; flex-direction: column; gap: 14px; padding: 32px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.vertical h3 { font-family: var(--display); font-weight: 400; font-size: 30px; letter-spacing: -.02em; }
+.vertical p { font-size: 15px; line-height: 1.65; color: var(--muted); text-wrap: pretty; }
+.vertical .link-underline { margin-top: auto; align-self: flex-start; }
+.vertical.active { background: var(--ink); border-color: var(--ink); color: var(--cream); transition: transform .4s var(--ease); }
+.vertical.active:hover { transform: translateY(-4px); }
+.vertical.active p { color: rgba(245, 241, 234, .72); }
+.vertical.active .micro { color: var(--coral); }
+.vertical.active .link-underline { border-color: var(--cream); }
+.vertical.soon { border-style: dashed; background: transparent; }
+
 .how-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 24px; margin-bottom: 56px; }
 .how-head > p { font-size: 15px; line-height: 1.6; color: var(--muted); max-width: 300px; }
 .steps { position: relative; }
@@ -183,6 +196,7 @@ em { font-style: italic; }
 .founders h2 { font-size: clamp(40px, 4.6vw, 72px); line-height: .98; }
 .founders .lead { margin-top: 28px; max-width: 520px; color: rgba(245, 241, 234, .8); }
 .founders .btn { margin-top: 40px; }
+.founders .lead .link-underline { border-color: var(--cream); white-space: nowrap; }
 .founders .micro { color: rgba(245, 241, 234, .6); }
 .slots { margin-top: 16px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
 .slot {
@@ -272,7 +286,6 @@ em { font-style: italic; }
 .legal { max-width: 720px; margin: 0 auto; padding: 80px 24px 120px; }
 .legal h1 { margin-top: 16px; font-family: var(--display); font-weight: 400; font-size: clamp(38px, 5vw, 56px); line-height: 1; letter-spacing: -.03em; }
 .legal .updated { margin-top: 16px; font-size: 14px; color: var(--subtle); }
-.legal .draft { margin-top: 32px; padding: 16px 20px; border-radius: 6px; border: 1px solid rgba(242, 107, 78, .3); background: rgba(242, 107, 78, .08); font-size: 14px; line-height: 1.6; color: #8A2E18; }
 .legal-body { margin-top: 48px; display: grid; gap: 40px; font-size: 16px; line-height: 1.7; color: var(--muted); }
 .legal-body h2 { margin-bottom: 12px; font-family: var(--display); font-weight: 400; font-size: 24px; letter-spacing: -.02em; color: var(--ink); }
 .legal-body ul { list-style: disc; padding-left: 20px; display: grid; gap: 8px; }

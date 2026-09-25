@@ -4,7 +4,7 @@
 
 ### Automatiza tu clinica con WhatsApp e IA
 
-Un chatbot inteligente que agenda citas, envia recordatorios y reduce inasistencias hasta en un 85%. Todo desde WhatsApp.
+Un asistente con IA que agenda citas, envía recordatorios y deja que el paciente confirme o reagende, todo desde WhatsApp. Empezamos con consultorios odontológicos.
 
 ---
 
@@ -18,9 +18,9 @@ Un chatbot inteligente que agenda citas, envia recordatorios y reduce inasistenc
 
 ## Por que SaludBot?
 
-Las clinicas en LATAM pierden hasta el **35% de sus citas** por inasistencias. Los pacientes olvidan sus citas, no contestan llamadas y no revisan emails.
+Las clínicas pierden citas porque los pacientes las olvidan: en un estudio de una clínica odontológica de Medellín, el olvido fue la primera causa de inasistencia ([CES, 2018](https://repository.ces.edu.co/handle/10946/5070)). No contestan llamadas ni revisan emails.
 
-Pero si revisan WhatsApp. **94% de penetracion** en Colombia, **98% de tasa de apertura**.
+Pero sí revisan WhatsApp: lo usa el **91,9%** de los usuarios de internet en Colombia ([La República, 2025](https://www.larepublica.co/internet-economy/whatsapp-facebook-e-instagram-lideran-el-listado-de-redes-sociales-mas-usadas-en-el-pais-4256298)).
 
 SaludBot convierte WhatsApp en el canal de comunicacion principal entre tu clinica y tus pacientes:
 
