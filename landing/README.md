@@ -9,29 +9,42 @@ Sitio estático (HTML, CSS y JS, sin build) que se publica en GitHub Pages con
 npm run landing          # http://localhost:4321
 ```
 
-El servidor local sirve la página y recibe las postulaciones del formulario de
-"Clínicas fundadoras". En GitHub Pages no hay servidor: el formulario muestra un
-mensaje para escribir a info@saludbot.co.
+En local también se escribe en el Supabase real: una postulación de prueba es
+una postulación de verdad (bórrala después).
 
 ## Postulaciones y cupos
 
-| Archivo | Qué tiene | ¿Se publica? |
+El formulario de "Clínicas fundadoras" escribe directo en Supabase (proyecto
+`saludbot`) con la llave publicable que está en `assets/app.js`. Esa llave solo
+puede crear postulaciones, subir logos y leer los cupos aprobados; no puede
+leer, editar ni borrar postulaciones. Las reglas están en
+`supabase/migrations/008_pilot_applications.sql` y `010_pilot_review.sql`.
+
+| Dónde | Qué hay | ¿Público? |
 |---|---|---|
-| `_privado/postulaciones.json` | Todo lo que llenó la clínica, incluido su contacto | **No** (gitignored) |
-| `_privado/logos/` | Logos subidos (el navegador los reduce a 256 px) | **No** (gitignored) |
-| `data/cupos.json` | Lo que carga la página: cupos ocupados y, de las clínicas aprobadas que dieron permiso, nombre, ciudad y logo | Sí |
-| `logos/` | Logos de clínicas aprobadas que dieron permiso | Sí |
+| Tabla `pilot_applications` | Todo lo que llenó la clínica, incluido su contacto | **No** |
+| Bucket `pilot-logos` (privado) | Logos subidos (el navegador los reduce a 256 px) | Solo los de clínicas aprobadas que dieron permiso |
+| Función `pilot_slots()` | Lo que carga la página: aprobadas con especialidad y ciudad; nombre y logo solo con permiso | Sí |
 
-Cada postulación ocupa un cupo como "En revisión". Después de hablar con la clínica:
+### Revisar una postulación
 
-```bash
-npm run landing:cupos -- lista             # ver postulaciones con su contacto
-npm run landing:cupos -- aprobar <id>      # el cupo muestra nombre y logo (si dio permiso)
-npm run landing:cupos -- rechazar <id>     # libera el cupo
-npm run landing:cupos -- publicar          # regenerar data/cupos.json y logos/
-```
+Todas entran como `pending` y **no se ven en la página** hasta que las apruebes.
 
-Para que un cambio se vea en GitHub Pages: commit de `landing/data` y `landing/logos`, y push a `main`.
+1. Abre la tabla `pilot_applications` en el Table Editor de Supabase.
+2. Verifica que la clínica sea real: escríbele al WhatsApp y revisa el logo
+   en el bucket `pilot-logos`.
+3. Cambia `status` a `approved` o `rejected`. `reviewed_at` se llena solo.
+
+Al aprobarla, la clínica ocupa un cupo en la página al instante; no hay que
+hacer deploy. Una rechazada libera su WhatsApp para postularse de nuevo.
+
+### Filtros anti-spam
+
+- Campo trampa (honeypot): si lo llena un bot, el formulario finge éxito y no envía nada.
+- Un WhatsApp solo puede tener una postulación pendiente o aprobada.
+- Máximo 30 pendientes a la vez y 20 postulaciones por hora en total.
+- Máximo 10 aprobadas (los cupos del piloto).
+- Logos: solo PNG, JPG o WebP de hasta 300 KB, con nombre aleatorio.
 
 Las especialidades y países del formulario (`assets/app.js`) se mantienen a mano
 en sincronía con `src/lib/clinics/`.

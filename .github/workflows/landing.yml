@@ -24,12 +24,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Publish only the public files: never server.mjs, scripts/ or _privado/
+      # Publish only the public files, never server.mjs
       - name: Collect public files
         run: |
           mkdir _site
           cp landing/*.html _site/
-          cp -r landing/assets landing/data landing/logos _site/
+          cp -r landing/assets _site/
           touch _site/.nojekyll
 
       - uses: actions/configure-pages@v5
