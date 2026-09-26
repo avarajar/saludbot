@@ -7,10 +7,13 @@
 
 ## La lista
 
-- **Fuente:** datos abiertos del REPS ([datos.gov.co c36g-9fc2](https://www.datos.gov.co/Salud-y-Protecci-n-Social/Registro-Especial-de-Prestadores-y-Sedes-de-Servic/c36g-9fc2)). Hay 274 sedes en Bogotá con "odont", "dent", "ortodon", "sonris", "smile" u "oral" en el nombre. "Oral" se busca como palabra completa; si no, se cuelan apellidos como Morales y la "medicina laboral".
+- **Fuente:** datos abiertos del REPS ([datos.gov.co c36g-9fc2](https://www.datos.gov.co/Salud-y-Protecci-n-Social/Registro-Especial-de-Prestadores-y-Sedes-de-Servic/c36g-9fc2)). Se buscan sedes de Bogotá con "odont", "dent", "ortodon", "sonris", "smile" u "oral" en el nombre. "Oral" y "smile" van como palabra completa; si no, se cuelan apellidos como Morales, la "medicina laboral" y nombres como "Yasmile".
 - **Filtros:**
-  - solo privados, con 1 o 2 sedes (fuera cadenas como Keralty, Dental Planet u Oralmedic);
+  - fuera radiología, imágenes, laboratorios, gremios, fundaciones, universidades y cooperativas;
+  - fuera cadenas: correo corporativo compartido por 3 o más sedes (Colsanitas, Oralmedic, Marlon Becerra, Odontoexpress, etc.);
+  - solo privados, con 1 o 2 sedes;
   - un registro por prestador.
+- **Resultado:** 180 sedes objetivo; la lista toma las 100 con mejor prioridad.
 - **Prioridad:** menciona ortodoncia (+3), tiene celular (+2), una sola sede (+1), tiene email de la sede (+1).
 - **Ojo:** los profesionales independientes suelen registrarse con su nombre, así que muchos ortodoncistas no aparecen con "ortodoncia". Hay que confirmar la especialidad en Google Maps o Instagram antes de escribir.
 - **Columnas para llenar:** `estado` (pendiente → contactado → respondió → llamada → piloto / no), `canal`, `fecha_contacto`, `respuesta`, `software_actual` y `notas`.
