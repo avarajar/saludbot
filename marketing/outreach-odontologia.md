@@ -7,7 +7,7 @@
 
 ## La lista
 
-- **Fuente:** datos abiertos del REPS ([datos.gov.co c36g-9fc2](https://www.datos.gov.co/Salud-y-Protecci-n-Social/Registro-Especial-de-Prestadores-y-Sedes-de-Servic/c36g-9fc2)). Hay 431 sedes en Bogotá con "odont", "dental", "ortodon", "sonris", "smile" u "oral" en el nombre.
+- **Fuente:** datos abiertos del REPS ([datos.gov.co c36g-9fc2](https://www.datos.gov.co/Salud-y-Protecci-n-Social/Registro-Especial-de-Prestadores-y-Sedes-de-Servic/c36g-9fc2)). Hay 274 sedes en Bogotá con "odont", "dent", "ortodon", "sonris", "smile" u "oral" en el nombre. "Oral" se busca como palabra completa; si no, se cuelan apellidos como Morales y la "medicina laboral".
 - **Filtros:**
   - solo privados, con 1 o 2 sedes (fuera cadenas como Keralty, Dental Planet u Oralmedic);
   - un registro por prestador.
