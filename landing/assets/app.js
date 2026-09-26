@@ -187,6 +187,24 @@
     rate_limited: 'Estamos recibiendo muchas postulaciones. Inténtalo de nuevo en un rato.',
   };
 
+  /* ---------------- Attribution (UTM params, kept for the whole visit) ---------------- */
+  const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign'];
+  const UTM_STORE = 'saludbot:utm';
+
+  // Only first-touch UTMs: a later link without them doesn't erase where the visit came from.
+  function captureUtm() {
+    const params = new URLSearchParams(window.location.search);
+    const fromUrl = Object.fromEntries(UTM_KEYS.map((k) => [k, params.get(k)?.trim().slice(0, 100)]).filter(([, v]) => v));
+    let stored = {};
+    try { stored = JSON.parse(sessionStorage.getItem(UTM_STORE)) || {}; } catch { /* storage blocked */ }
+    if (Object.keys(fromUrl).length && !Object.keys(stored).length) {
+      stored = fromUrl;
+      try { sessionStorage.setItem(UTM_STORE, JSON.stringify(stored)); } catch { /* storage blocked */ }
+    }
+    return Object.keys(stored).length ? stored : fromUrl;
+  }
+  const attribution = captureUtm();
+
   /* ---------------- Pilot slots (only approved clinics take a slot) ---------------- */
   let slotState = { total: 10, cupos: [] };
 
@@ -377,6 +395,7 @@
             email: data.correo.trim() || null, show_publicly: form.mostrar.checked,
             accepted_terms: form.acepta.checked, logo_path: logoPath,
             current_scheduling: data.agenda || null,
+            ...attribution, landing_page: window.location.pathname.slice(0, 200),
           }),
         });
         if (!res.ok) {

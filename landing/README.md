@@ -48,6 +48,30 @@ Todas entran como `pending` y **no se ven en la página** hasta que las apruebes
 Al aprobarla, la clínica ocupa un cupo en la página al instante; no hay que
 hacer deploy. Una rechazada libera su WhatsApp para postularse de nuevo.
 
+### De dónde llega cada postulación
+
+Cada postulación guarda `utm_source`, `utm_medium` y `utm_campaign` (si el link los trae) y la
+página donde se envió el formulario (`landing_page`). Los UTM se conservan durante la visita:
+si alguien entra a la home con UTM y postula desde `/odontologia`, igual quedan.
+
+Usa un link distinto por canal para saber cuál funciona:
+
+| Canal | Link |
+|---|---|
+| WhatsApp directo | `https://saludbot.co/odontologia/?utm_source=whatsapp&utm_medium=directo&utm_campaign=piloto-odonto` |
+| Email en frío | `https://saludbot.co/odontologia/?utm_source=email&utm_medium=cold&utm_campaign=piloto-odonto` |
+| Visita / QR en consultorio | `https://saludbot.co/odontologia/?utm_source=qr&utm_medium=visita&utm_campaign=piloto-odonto` |
+| Depósito dental | `https://saludbot.co/odontologia/?utm_source=deposito&utm_medium=qr&utm_campaign=piloto-odonto` |
+| Referido de un consultorio | `https://saludbot.co/odontologia/?utm_source=referido&utm_medium=directo&utm_campaign=piloto-odonto` |
+
+Para ver los resultados, en el SQL Editor de Supabase:
+
+```sql
+select coalesce(utm_source, '(sin utm)') as canal, count(*) as postulaciones,
+       count(*) filter (where status = 'approved') as aprobadas
+from pilot_applications group by 1 order by 2 desc;
+```
+
 ### Filtros anti-spam
 
 - Campo trampa (honeypot): si lo llena un bot, el formulario finge éxito y no envía nada.
