@@ -54,3 +54,6 @@ next-env.d.ts
 # claude
 .claude/
 
+
+# prospect lists with contact data (repo is public: never commit)
+/marketing/_privado/
