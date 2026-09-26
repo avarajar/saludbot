@@ -37,33 +37,65 @@
 | Visita / QR | `https://saludbot.co/odontologia/?utm_source=qr&utm_medium=visita&utm_campaign=piloto-odonto` |
 | Referido | `https://saludbot.co/odontologia/?utm_source=referido&utm_medium=directo&utm_campaign=piloto-odonto` |
 
-## WhatsApp
+## Primero: validar si el mercado ya está cubierto
 
-**Mensaje 1 · día 1**
+Recordar citas y agendar por WhatsApp ya lo ofrecen Meta (Business Agent, lanzado para todo el mundo en jun-2026) y las suites de agenda (Doctoralia, Dentalink, Saludtools). Antes de construir más, las primeras 15 respuestas tienen que contestar dos preguntas:
 
-> Buenas, {Saludo}. Soy {Tu nombre}, de SaludBot, en Bogotá.
+1. **¿Ya lo tienen resuelto?** ¿Confirman con software, con el bot de Meta o a mano?
+2. **¿Pierden pacientes que no vuelven?** Controles, limpieza semestral, tratamientos a medias y presupuestos sin agendar.
+
+Por eso el primer contacto **pregunta, no vende**.
+
+### Email 1 · asunto: `pregunta sobre sus citas`
+
+> {Saludo}:
 >
-> Le escribo por WhatsApp porque justo de eso se trata: estamos probando un asistente que le confirma las citas a sus pacientes por este medio (controles, limpiezas, valoraciones) y, si el paciente no puede, le reprograma en el mismo chat.
+> Estoy hablando con consultorios odontológicos de Bogotá para entender algo, y quería preguntarle a usted:
 >
-> Buscamos 10 consultorios que lo prueben gratis mientras lo afinamos. ¿Le puedo contar en una llamada de 15 minutos?
+> 1. ¿Cómo confirman hoy las citas con sus pacientes: con un software, por WhatsApp a mano o de otra forma?
+> 2. ¿Qué hacen con los pacientes que no vuelven a su control o dejan un tratamiento a medias?
 >
-> Aquí está cómo funciona: {Link WhatsApp}
+> Me basta con una respuesta corta. Estoy construyendo algo para esto y prefiero preguntar antes de suponer.
+>
+> {Tu nombre}
+> SaludBot · Bogotá
+> info@saludbot.co
+>
+> P.D. Si no le interesa, respóndame "no" y no le vuelvo a escribir.
+
+El link a la landing va **solo en la segunda respuesta**, cuando muestren interés: {Link email}.
+
+### WhatsApp 1 · día 1
+
+> Buenas, {Saludo}. Soy {Tu nombre}, de SaludBot, en Bogotá. Estoy hablando con consultorios odontológicos para entender cómo manejan sus citas. ¿Le puedo hacer dos preguntas cortas?
+>
+> 1. ¿Cómo confirman hoy las citas: con un software, por WhatsApp a mano o de otra forma?
+> 2. ¿Qué hacen con los pacientes que no vuelven a su control o dejan un tratamiento a medias?
 >
 > Si no le interesa, me dice y no le vuelvo a escribir.
 
-**Mensaje 2 · día 3** (si no respondió)
+### WhatsApp 2 · día 4 (si no respondió)
 
-> {Saludo}, una pregunta corta: ¿cuántos pacientes le fallaron a su cita la semana pasada?
->
-> Esa es la parte que queremos resolver con el piloto. Si le sirve, se lo configuramos sin costo.
+> {Saludo}, solo la primera pregunta, si tiene un minuto: ¿cómo confirman hoy las citas con sus pacientes?
 
-**Mensaje 3 · día 7** (último)
+**Si responde y hay interés:** cuéntele en dos líneas qué está construyendo y envíe {Link WhatsApp} para que postule el consultorio.
 
-> {Saludo}, no le escribo más para no molestar. Si más adelante le interesa probarlo, aquí queda el link: {Link WhatsApp}. ¡Que tenga buena semana!
+### Qué anotar (columnas en el CSV)
 
-**Si responde que sí:** proponga dos horarios concretos para la llamada ("¿le queda mejor el martes a las 12 o el miércoles a las 5?").
+| Columna | Valores |
+|---|---|
+| `como_confirman` | `software` (cuál) · `bot_meta` · `whatsapp_manual` · `llamadas` · `no_confirman` |
+| `pierden_pacientes` | `sí` · `no` · `no_sabe` (y lo que digan en `notas`) |
+| `ya_resuelto` | `sí`: dicen que ya lo tienen cubierto · `no` |
+| `interes` | `alto`: quiere probar · `medio`: pide info · `bajo`/`no` |
 
-## Guion de la llamada (15 min)
+### Regla para decidir (con 15 respuestas)
+
+- **10 o más dicen `ya_resuelto = sí`:** el mercado está saturado. Parar o cambiar de nicho y propuesta.
+- **5 o más dicen `whatsapp_manual`/`no_confirman` con `pierden_pacientes = sí`:** hay espacio. Seguir con la propuesta de "recuperar pacientes que no vuelven" y desplegar el bot para ellos.
+- **Algo intermedio:** hacer 10 conversaciones más antes de decidir.
+
+## Guion de la llamada (15 min, para quien muestre interés)
 
 La meta de la llamada es **aprender**, no vender. Pregunte y escuche; muestre el producto solo al final.
 
