@@ -109,6 +109,7 @@ em { font-style: italic; }
 
 .mock { position: relative; min-height: 760px; transform-style: preserve-3d; animation: fade 1.2s var(--ease) .5s both; }
 .panel-wrap { position: absolute; right: 0; top: 0; width: min(100%, 380px); }
+.mock-label { position: absolute; right: 0; bottom: 0; }
 .panel {
   transform: rotate(1.5deg); background: var(--surface); border: 1px solid rgba(20, 26, 46, .1); border-radius: 6px;
   padding: 22px; box-shadow: 0 30px 60px -40px rgba(20, 26, 46, .4);
@@ -319,6 +320,7 @@ em { font-style: italic; }
   .mock { min-height: 0; display: flex; flex-direction: column; gap: 32px; }
   .panel-wrap, .chat-wrap { position: relative; top: auto; right: auto; left: auto; width: 100%; }
   .chat-wrap { max-width: 320px; margin: 0 auto; }
+  .mock-label { position: static; text-align: center; }
   /* Fixed height so the growing conversation doesn't shift the page below */
   .chat { height: 480px; min-height: 0; overflow: hidden; }
   .sticky { position: static; }
