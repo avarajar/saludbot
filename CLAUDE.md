@@ -84,3 +84,11 @@ Cron hits GET /api/cron/reminders with Bearer token. Sends reminders at 48h, 24h
 - Currency: Colombian Pesos (COP)
 - WhatsApp messages: max ~300 chars
 - Error handling: never crash, always respond gracefully to patients
+
+## Estado del proyecto (sept 2026)
+- **Fase: validar antes de construir más.** Recordar citas y agendar por WhatsApp ya lo cubren Meta (Business Agent) y las suites de agenda (Doctoralia, Dentalink, Saludtools). No agregar funcionalidades hasta tener las 15 respuestas de consultorios.
+- **Nicho del piloto:** consultorios odontológicos en Bogotá. Hipótesis a validar: "recuperar pacientes que no vuelven" (controles, limpieza semestral, tratamientos a medias), no "un chatbot".
+- **Plan, mensajes y regla de decisión:** `marketing/outreach-odontologia.md`. Resumen de la regla: con 10 o más "ya lo tenemos resuelto", parar o cambiar de enfoque; con 5 o más "a mano y perdemos pacientes", seguir.
+- **Lista de prospectos:** `marketing/_privado/` (gitignored; el repo es público, nunca subirla).
+- **Landing:** https://saludbot.co (`landing/`, GitHub Pages). Las postulaciones van a la tabla `pilot_applications` de Supabase y se aprueban a mano (ver `landing/README.md`).
+- **Producción:** el bot no está desplegado; el servidor se borró el 23-sep-2026. Desplegar cuando haya 2 o 3 consultorios interesados.
