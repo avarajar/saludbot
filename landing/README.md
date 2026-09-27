@@ -28,7 +28,7 @@ El formulario de "Clínicas fundadoras" escribe directo en Supabase (proyecto
 `saludbot`) con la llave publicable que está en `assets/app.js`. Esa llave solo
 puede crear postulaciones, subir logos y leer los cupos aprobados; no puede
 leer, editar ni borrar postulaciones. Las reglas están en
-`supabase/migrations/008_pilot_applications.sql` y `010_pilot_review.sql`.
+`supabase/migrations/008_pilot_applications.sql`, `010_pilot_review.sql` y `013_pilot_status_enum.sql`.
 
 | Dónde | Qué hay | ¿Público? |
 |---|---|---|
@@ -38,15 +38,19 @@ leer, editar ni borrar postulaciones. Las reglas están en
 
 ### Revisar una postulación
 
-Todas entran como `pending` y **no se ven en la página** hasta que las apruebes.
+Todas entran como `pendiente de validación` y aparecen en la página como un cupo
+"En validación", solo con la ciudad: sin nombre ni logo hasta que las apruebes.
 
 1. Abre la tabla `pilot_applications` en el Table Editor de Supabase.
 2. Verifica que la clínica sea real: escríbele al WhatsApp y revisa el logo
    en el bucket `pilot-logos`.
-3. Cambia `status` a `approved` o `rejected`. `reviewed_at` se llena solo.
+3. Cambia `status` en el desplegable a `aprobada` o `rechazada`. `reviewed_at` se llena solo.
 
-Al aprobarla, la clínica ocupa un cupo en la página al instante; no hay que
-hacer deploy. Una rechazada libera su WhatsApp para postularse de nuevo.
+Al aprobarla, el cupo pasa a clínica fundadora (con nombre y logo si dio permiso)
+al instante; no hay que hacer deploy. Una rechazada desaparece de la página y
+libera su WhatsApp para postularse de nuevo. Solo las aprobadas cuentan para el
+tope de 10: mientras haya menos de 10, el formulario sigue abierto aunque los
+cupos visibles estén llenos de pendientes.
 
 ### De dónde llega cada postulación
 
@@ -68,7 +72,7 @@ Para ver los resultados, en el SQL Editor de Supabase:
 
 ```sql
 select coalesce(utm_source, '(sin utm)') as canal, count(*) as postulaciones,
-       count(*) filter (where status = 'approved') as aprobadas
+       count(*) filter (where status = 'aprobada') as aprobadas
 from pilot_applications group by 1 order by 2 desc;
 ```
 

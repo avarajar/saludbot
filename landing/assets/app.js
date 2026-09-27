@@ -205,7 +205,7 @@
   }
   const attribution = captureUtm();
 
-  /* ---------------- Pilot slots (only approved clinics take a slot) ---------------- */
+  /* ---------------- Pilot slots (approved first, then those pending validation) ---------------- */
   let slotState = { total: 10, cupos: [] };
 
   async function loadSlots() {
@@ -238,7 +238,9 @@
     const note = $('[data-slots-note]');
     if (!grid) return;
     const { total, cupos } = slotState;
-    const taken = cupos.length;
+    // Before migration 013 the RPC returned only approved slots, without `estado`
+    const approved = cupos.filter((c) => c.estado !== 'en_validacion').length;
+    const pending = cupos.length - approved;
 
     grid.replaceChildren(...Array.from({ length: total }, (_, i) => {
       const cupo = cupos[i];
@@ -251,7 +253,16 @@
         el.addEventListener('click', openApply);
         return el;
       }
-      el.classList.add('taken', 'approved');
+      el.classList.add('taken');
+      if (cupo.estado === 'en_validacion') {
+        const tag = document.createElement('span');
+        tag.className = 'slot-tag';
+        tag.textContent = 'En validación';
+        el.append(tag);
+        el.title = ['En validación', cupo.ciudad].filter(Boolean).join(' · ');
+        return el;
+      }
+      el.classList.add('approved');
       const label = cupo.nombre || `Clínica en ${cupo.ciudad || 'LATAM'}`;
       if (cupo.logo) {
         const img = document.createElement('img');
@@ -268,15 +279,21 @@
       return el;
     }));
 
-    const free = total - taken;
-    if (taken === 0) {
+    const free = Math.max(total - approved - pending, 0);
+    const detail = [
+      approved && `${approved} clínica${approved === 1 ? '' : 's'} fundadora${approved === 1 ? '' : 's'}`,
+      pending && `${pending} en validación`,
+    ].filter(Boolean).join(', ');
+    if (approved >= total) {
+      note.textContent = 'Los 10 cupos están tomados. Escríbenos a info@saludbot.co para la lista de espera.';
+    } else if (!detail) {
       note.textContent = `${total} de ${total} disponibles. Ninguna clínica ha entrado todavía; la primera puede ser la tuya.`;
     } else if (free > 0) {
-      note.textContent = `${free} de ${total} disponibles (${taken} clínica${taken === 1 ? '' : 's'} fundadora${taken === 1 ? '' : 's'}).`;
+      note.textContent = `${free} de ${total} disponibles (${detail}).`;
     } else {
-      note.textContent = 'Los 10 cupos están tomados. Escríbenos a info@saludbot.co para la lista de espera.';
+      note.textContent = `Sin cupos libres por ahora (${detail}). Si una postulación no se aprueba, su cupo se libera; puedes postularte igual.`;
     }
-    $$('[data-apply]').forEach((btn) => { btn.hidden = free <= 0; });
+    $$('[data-apply]').forEach((btn) => { btn.hidden = approved >= total; });
   }
 
   /* ---------------- Application form ---------------- */
@@ -403,6 +420,7 @@
           throw new Error(APPLY_ERRORS[body.code] || APPLY_ERRORS[body.message] || 'fallo');
         }
         done();
+        loadSlots();
       } catch (err) {
         showError(Object.values(APPLY_ERRORS).includes(err.message)
           ? err.message
