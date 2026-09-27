@@ -88,6 +88,7 @@ El link a la landing va **solo en la segunda respuesta**, cuando muestren inter�
 | `pierden_pacientes` | `sí` · `no` · `no_sabe` (y lo que digan en `notas`) |
 | `ya_resuelto` | `sí`: dicen que ya lo tienen cubierto · `no` |
 | `interes` | `alto`: quiere probar · `medio`: pide info · `bajo`/`no` |
+| `lista_pacientes` | `software_exporta` · `software_no_exporta` · `excel` · `cuaderno` · `no_sabe` (se llena en la llamada) |
 
 ### Regla para decidir (con 15 respuestas)
 
@@ -101,6 +102,7 @@ La meta de la llamada es **aprender**, no vender. Pregunte y escuche; muestre el
 
 1. **Contexto (2 min):** ¿Cuántos odontólogos y sillas tienen? ¿Hacen ortodoncia? ¿Cuántas citas atienden por semana, más o menos?
 2. **Cómo agendan hoy (3 min):** ¿Quién contesta el WhatsApp? ¿Usan algún software (Dentalink, Doctoralia, Excel, cuaderno)? ¿Lo pagan? ¿Cuánto?
+   - ¿Dónde tienen la lista de sus pacientes, con teléfono y fecha de la última cita? ¿Nos la podrían pasar en Excel si se la pidiéramos? Sin esa lista no hay a quién escribirle para que vuelva.
 3. **El dolor (4 min):**
    - ¿Cuántos pacientes faltan en una semana normal? ¿Les avisan antes?
    - ¿Qué pasa con el control de ortodoncia cuando el paciente falta: se atrasa la cuota?
@@ -109,7 +111,7 @@ La meta de la llamada es **aprender**, no vender. Pregunte y escuche; muestre el
 5. **La propuesta (3 min):** piloto gratis y precio de fundador después. Pregunte: *"Si le recuperamos dos controles al mes, ¿pagaría $150.000 mensuales?"* Anote la respuesta tal cual, sea sí, no o "depende de…".
 6. **Cierre (1 min):** si quiere entrar, envíele el link del formulario o llénenlo juntos, y acuerden la fecha de configuración.
 
-Anote en el CSV `software_actual` y lo que dijeron sobre inasistencias y precio.
+Anote en el CSV `software_actual`, `lista_pacientes` y lo que dijeron sobre inasistencias y precio.
 
 ## Antes de empezar: falta la demo
 
